@@ -1,0 +1,5 @@
+project_id = "rrwljoqzrxkjdxfhlnxv"
+
+# プッシュ送信関数は独自ログイン方式のためJWT検証は不要
+[functions.send-push]
+verify_jwt = false
