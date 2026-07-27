@@ -246,6 +246,19 @@ export const EVENT_TYPE_COLOR: Record<string, string> = {
 // 凡例・選択肢に表示する順序
 export const EVENT_TYPES: EventType[] = ["shooting", "meeting", "delivery", "other"];
 
+// 宿泊予約（ねっぱん！のiCalフィードから同期。アプリ側では編集不可・読み取り専用）
+export type ReservationStatus = "confirmed" | "cancelled";
+
+export interface Reservation {
+  id: string;
+  neppanBookingId: string;
+  checkinDate: string; // "YYYY-MM-DD"
+  checkoutDate: string; // "YYYY-MM-DD"
+  roomType: string;
+  guestName: string;
+  status: ReservationStatus;
+}
+
 // 動画編集依頼（依頼管理機能）
 export type VideoTaskStatus = "pending" | "accepted" | "submitted" | "completed" | "rejected" | "cancelled";
 

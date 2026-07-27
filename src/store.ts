@@ -5,6 +5,7 @@ import type {
   PayConfirmation,
   Recipient,
   RecipientType,
+  Reservation,
   ScheduleEvent,
   User,
   VideoTask,
@@ -40,6 +41,7 @@ const KEYS = {
   eventApprovals: "sns_event_approvals",
   projects: "sns_projects",
   materials: "sns_project_materials",
+  reservations: "sns_reservations",
   version: "sns_schema_version",
 };
 
@@ -793,5 +795,20 @@ export function deleteMaterial(id: string): void {
 export function getConfirmedDeliverables(): ProjectMaterial[] {
   return getMaterials().filter(
     (m) => m.category === "deliverable" && m.delStatus === "confirmed"
+  );
+}
+
+// ---- 宿泊予約（ねっぱん！から同期。読み取り専用） ----
+export function getReservations(): Reservation[] {
+  return read<Reservation[]>(KEYS.reservations, []);
+}
+
+// 指定日に宿泊中（チェックイン〜チェックアウト前日まで）の予約
+export function reservationsOn(date: string): Reservation[] {
+  return getReservations().filter(
+    (r) =>
+      r.status === "confirmed" &&
+      r.checkinDate <= date &&
+      date < r.checkoutDate
   );
 }

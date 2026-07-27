@@ -7,6 +7,7 @@ import {
   REQUEST_STATUS_LABEL,
   SLOT_LABEL,
   type EventType,
+  type Reservation,
   type ScheduleEvent,
   type User,
 } from "../types";
@@ -19,12 +20,14 @@ import {
   getEvents,
   eventsAwaitingAdmin,
   getMembers,
+  getReservations,
   getUnseenAssignedEvents,
   getUsers,
   markAssignedEventsSeen,
   pendingEventApprovalsForUser,
   pendingRequestsForUser,
   rejectRequest,
+  reservationsOn,
   requestsOn,
   upsertEvent,
   uid,
@@ -114,6 +117,19 @@ export default function Calendar({
     for (const e of events) (map[e.date] ??= []).push(e);
     return map;
   }, [events]);
+
+  // 宿泊予約（ねっぱん！から同期）：チェックイン〜チェックアウト前日の各日に展開
+  const reservations = useMemo(() => getReservations(), [version]);
+  const reservationsByDate = useMemo(() => {
+    const map: Record<string, Reservation[]> = {};
+    for (const r of reservations) {
+      if (r.status !== "confirmed") continue;
+      for (let d = new Date(r.checkinDate); ymd(d) < r.checkoutDate; d.setDate(d.getDate() + 1)) {
+        (map[ymd(d)] ??= []).push(r);
+      }
+    }
+    return map;
+  }, [reservations]);
 
   const availNamesByDate = useMemo(() => {
     const nameById: Record<string, string> = {};
@@ -377,6 +393,14 @@ export default function Calendar({
                     )}
                   </div>
                 )}
+                {reservationsByDate[ds] && reservationsByDate[ds].length > 0 && (
+                  <div
+                    className="cal-reservations"
+                    title={reservationsByDate[ds].map((r) => r.guestName || "予約").join("、")}
+                  >
+                    🏨 予約 {reservationsByDate[ds].length}件
+                  </div>
+                )}
                 <div className="cal-events">
                   {dayEvents.slice(0, 3).map((e) => (
                     <div
@@ -443,6 +467,7 @@ function DayPanel({
   const availList = availabilityOn(date).filter((a) =>
     users.some((u) => u.id === a.userId && u.role === "member")
   );
+  const dayReservations = reservationsOn(date);
   const dayRequests = requestsOn(date);
   const members = users.filter((u) => u.role === "member");
 
@@ -468,6 +493,24 @@ function DayPanel({
           <h3>{date.replace(/-/g, "/")}</h3>
           <button className="ghost" onClick={onClose}>✕</button>
         </div>
+
+        {dayReservations.length > 0 && (
+          <div className="avail-box">
+            <strong>この日の宿泊予約（{dayReservations.length}件）</strong>
+            <div className="avail-member-list">
+              {dayReservations.map((r) => (
+                <div key={r.id} className="avail-member">
+                  <span className="avail-chip">{r.guestName || "ゲスト"}</span>
+                  <span className="avail-slots">
+                    {r.checkinDate.slice(5).replace("-", "/")}〜
+                    {r.checkoutDate.slice(5).replace("-", "/")}
+                    {r.roomType ? ` / ${r.roomType}` : ""}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {me.role === "owner" && (
           <div className="avail-box">

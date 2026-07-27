@@ -8,6 +8,7 @@ import type {
   Project,
   ProjectMaterial,
   Recipient,
+  Reservation,
   ScheduleEvent,
   User,
   VideoTask,
@@ -308,6 +309,17 @@ const fromDbMaterial = (r: any): ProjectMaterial => ({
   confirmedAt: r.confirmed_at ?? undefined,
 })
 
+// 宿泊予約（ねっぱん！から同期。読み取り専用なので toDb 変換は不要）
+const fromDbReservation = (r: any): Reservation => ({
+  id: r.id,
+  neppanBookingId: r.neppan_booking_id,
+  checkinDate: r.checkin_date,
+  checkoutDate: r.checkout_date,
+  roomType: r.room_type ?? '',
+  guestName: r.guest_name ?? '',
+  status: r.status ?? 'confirmed',
+})
+
 // プロフィール（= アプリの User）。SaaS版では users テーブルの代わりに profiles を使う。
 const toDbProfile = (u: User) => ({
   id: u.id,
@@ -439,7 +451,7 @@ export async function uploadMaterialFile(
 export async function loadOrgData(): Promise<void> {
   const [
     profiles, events, avail, requests, pay, recipients,
-    templates, videoTasks, approvals, projects, materials,
+    templates, videoTasks, approvals, projects, materials, reservations,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
     supabase.from('schedule_events').select('*'),
@@ -452,6 +464,7 @@ export async function loadOrgData(): Promise<void> {
     supabase.from('event_approvals').select('*'),
     supabase.from('projects').select('*'),
     supabase.from('project_materials').select('*'),
+    supabase.from('reservations').select('*'),
   ])
   const put = (key: string, rows: any[] | null | undefined, map: (r: any) => unknown) => {
     if (rows) localStorage.setItem(key, JSON.stringify(rows.map(map)))
@@ -467,6 +480,7 @@ export async function loadOrgData(): Promise<void> {
   put('sns_event_approvals', approvals.data, fromDbEventApproval)
   put('sns_projects', projects.data, fromDbProject)
   put('sns_project_materials', materials.data, fromDbMaterial)
+  put('sns_reservations', reservations.data, fromDbReservation)
 }
 
 // ---- Hydration: Supabase → localStorage on app start（旧・単一テナント用。SaaS版では未使用） ----

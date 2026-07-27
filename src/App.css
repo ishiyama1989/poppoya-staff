@@ -801,6 +801,19 @@ label input, label select, label textarea { margin-top: 6px; font-weight: 400; }
 .cal-avail-name.more { background: var(--bg); color: var(--muted); }
 .cal-avail-slots { font-size: 9px; font-weight: 500; color: #c86030; opacity: 0.85; margin-left: 2px; }
 
+.cal-reservations {
+  font-size: 10px;
+  font-weight: 600;
+  color: #2563eb;
+  background: rgba(37,99,235,0.10);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin: 2px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .cal-events { margin-top: 2px; display: flex; flex-direction: column; gap: 2px; }
 .cal-chip {
   color: #fff;

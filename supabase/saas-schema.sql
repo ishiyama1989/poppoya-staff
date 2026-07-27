@@ -9,6 +9,7 @@ create table organizations (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   plan text not null default 'free',
+  neppan_ical_url text, -- ねっぱん！のiCal(.ics)フィードURL（未設定ならnull=同期しない）
   created_at timestamptz default now()
 );
 
@@ -131,6 +132,17 @@ create table push_subscriptions (
   user_id text not null, subscription jsonb not null, created_at timestamptz default now()
 );
 
+-- 宿泊予約（ねっぱん！のiCalフィードから sync-neppan Edge Function が同期。アプリからは読み取り専用）
+create table reservations (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  neppan_booking_id text not null,
+  checkin_date text not null, checkout_date text not null,
+  room_type text default '', guest_name text default '',
+  status text not null default 'confirmed', synced_at timestamptz default now(),
+  unique (org_id, neppan_booking_id)
+);
+
 -- =====================================================================
 -- RLS：自分の組織のデータだけ読み書きできるようにする
 -- =====================================================================
@@ -160,6 +172,10 @@ begin
     execute format('create policy d on %I for delete using (org_id = auth_org_id());', t);
   end loop;
 end $$;
+
+-- reservations は読み取り専用（select のみ）。書き込みは sync-neppan Edge Function（service role, RLSバイパス）だけが行う。
+alter table reservations enable row level security;
+create policy res_sel on reservations for select using (org_id = auth_org_id());
 
 -- ファイル保存用ストレージ（資料）。組織フォルダで分ける運用。
 insert into storage.buckets (id, name, public) values ('materials','materials', true)
