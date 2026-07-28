@@ -1,34 +1,43 @@
 import { useMemo, useRef, useState } from "react";
-import { Clock as ClockIcon, MapPin, User as UserIcon, Search } from "lucide-react";
+import { Clock as ClockIcon, ClipboardCheck, MapPin, User as UserIcon, Search } from "lucide-react";
 import {
   EVENT_TYPE_COLOR,
   EVENT_TYPE_LABEL,
   EVENT_TYPES,
   REQUEST_STATUS_LABEL,
   SLOT_LABEL,
+  type ChecklistItem,
   type EventType,
+  type HandoverNote,
   type Reservation,
   type ScheduleEvent,
   type User,
 } from "../types";
 import {
+  addChecklistItem,
+  addHandoverNote,
   addRequest,
   approveRequest,
   availabilityOn,
+  deleteChecklistItem,
   deleteEvent,
+  deleteHandoverNote,
   getAvailability,
+  getChecklistItems,
   getEvents,
   eventsAwaitingAdmin,
   getMembers,
   getReservations,
   getUnseenAssignedEvents,
   getUsers,
+  handoverNotesOn,
   markAssignedEventsSeen,
   pendingEventApprovalsForUser,
   pendingRequestsForUser,
   rejectRequest,
   reservationsOn,
   requestsOn,
+  toggleChecklistItem,
   upsertEvent,
   uid,
 } from "../store";
@@ -131,6 +140,20 @@ export default function Calendar({
     return map;
   }, [reservations]);
 
+  // 予約はあるのにスタッフが一人も配置されていない日（当月のみ）
+  const shortStaffedDates = useMemo(() => {
+    if (!isOwner) return [] as string[];
+    return grid
+      .filter((d) => d.getMonth() === month)
+      .map((d) => ymd(d))
+      .filter((ds) => {
+        if ((reservationsByDate[ds]?.length ?? 0) === 0) return false;
+        const staffIds = new Set<string>();
+        for (const e of eventsByDate[ds] ?? []) for (const id of e.assigneeIds) staffIds.add(id);
+        return staffIds.size === 0;
+      });
+  }, [grid, month, reservationsByDate, eventsByDate, isOwner]);
+
   const availNamesByDate = useMemo(() => {
     const nameById: Record<string, string> = {};
     for (const u of users) if (u.role === "member") nameById[u.id] = u.name;
@@ -207,6 +230,17 @@ export default function Calendar({
                     );
                   })}
                 </div>
+              )}
+              {searchMatchDates.size > 0 && (
+                <BulkShiftForm
+                  dates={[...searchMatchDates].sort()}
+                  memberIds={searchSelected}
+                  members={allMembers}
+                  onDone={() => {
+                    refresh();
+                    setSearchSelected([]);
+                  }}
+                />
               )}
             </div>
           </div>
@@ -306,6 +340,16 @@ export default function Calendar({
             </button>
           </div>
         )}
+        {shortStaffedDates.length > 0 && (
+          <div className="pending-banner warn">
+            <span className="pending-banner-text">
+              予約はあるのにスタッフが未配置の日が <strong>{shortStaffedDates.length}日</strong> あります
+              <span className="unseen-dates">
+                {shortStaffedDates.slice(0, 4).map((d) => d.slice(5).replace("-", "/")).join("、")}
+              </span>
+            </span>
+          </div>
+        )}
         <div className="cal-header">
           <button onClick={() => shiftMonth(-1)}>‹</button>
           <h2>
@@ -344,12 +388,13 @@ export default function Calendar({
             const isDragOver = dragOverDate === ds;
             const isSearchHit = searchMatchDates.has(ds);
             const isMyDay = !isOwner && inMonth && dayEvents.some((e) => e.assigneeIds.includes(me.id));
+            const isShortStaffed = isOwner && inMonth && shortStaffedDates.includes(ds);
             return (
               <div
                 key={ds}
                 className={`cal-cell ${inMonth ? "" : "dim"} ${
                   ds === todayStr() ? "today" : ""
-                } ${selected === ds ? "sel" : ""} ${isDragOver ? "drag-over" : ""} ${isSearchHit ? "hit" : ""} ${isMyDay ? "my-day" : ""}`}
+                } ${selected === ds ? "sel" : ""} ${isDragOver ? "drag-over" : ""} ${isSearchHit ? "hit" : ""} ${isMyDay ? "my-day" : ""} ${isShortStaffed ? "short-staffed" : ""}`}
                 onClick={() => setSelected(ds)}
                 onDragOver={isOwner ? (ev) => { ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; setDragOverDate(ds); } : undefined}
                 onDragLeave={isOwner ? (ev) => { if (!ev.currentTarget.contains(ev.relatedTarget as Node)) setDragOverDate(null); } : undefined}
@@ -494,6 +539,8 @@ function DayPanel({
           <button className="ghost" onClick={onClose}>✕</button>
         </div>
 
+        <HandoverNotes date={date} me={me} users={users} />
+
         {dayReservations.length > 0 && (
           <div className="avail-box">
             <strong>この日の宿泊予約（{dayReservations.length}件）</strong>
@@ -615,6 +662,7 @@ function DayPanel({
                           .join(", ") || "未割当"}
                   </div>
                   {e.note && <div className="event-note">{e.note}</div>}
+                  <EventChecklist eventId={e.id} />
                 </div>
                 <div className="event-actions">
                   {me.role === "owner" && (
@@ -1042,6 +1090,267 @@ function RequestForm({
       <div className="form-actions">
         <button className="ghost" onClick={onCancel}>キャンセル</button>
         <button className="primary" onClick={send}>依頼を送る</button>
+      </div>
+    </div>
+  );
+}
+
+// 稼働日検索の結果(複数日)に対して、選択メンバー全員分のシフトをまとめて作成する
+function BulkShiftForm({
+  dates,
+  memberIds,
+  members,
+  onDone,
+}: {
+  dates: string[];
+  memberIds: string[];
+  members: User[];
+  onDone: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [type, setType] = useState<EventType>("shooting");
+  const [location, setLocation] = useState("");
+  const [start, setStart] = useState("10:00");
+  const [end, setEnd] = useState("");
+
+  function create() {
+    if (memberIds.length === 0) return alert("メンバーを選択してください");
+    if (!title.trim()) return alert("内容を入力してください");
+    for (const date of dates) {
+      upsertEvent({
+        id: uid(),
+        date,
+        type,
+        title: title.trim(),
+        location,
+        assigneeIds: memberIds,
+        start,
+        end,
+        note: "",
+        hasReward: true,
+      });
+    }
+    sendPushToUsers(
+      memberIds,
+      "新しい予定が登録されました",
+      `${dates.length}日ぶんのシフトが登録されました：${TYPE_JP[type] ?? ""}「${title.trim()}」`,
+      "/"
+    );
+    setTitle("");
+    setLocation("");
+    setOpen(false);
+    onDone();
+  }
+
+  if (dates.length === 0) return null;
+
+  return (
+    <div className="bulk-shift-box">
+      {!open ? (
+        <button type="button" className="primary mini" onClick={() => setOpen(true)}>
+          ＋この{dates.length}日でまとめてシフト作成
+        </button>
+      ) : (
+        <div className="event-form">
+          <label>
+            何をするか
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="例: 客室清掃シフト"
+            />
+          </label>
+          <div className="row">
+            <label>
+              種別
+              <select value={type} onChange={(e) => setType(e.target.value as EventType)}>
+                <option value="shooting">撮影</option>
+                <option value="meeting">会議</option>
+                <option value="delivery">納品</option>
+                <option value="other">その他</option>
+              </select>
+            </label>
+            <label>
+              場所
+              <input
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="任意"
+              />
+            </label>
+          </div>
+          <div className="row">
+            <label>
+              開始
+              <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+            </label>
+            <label>
+              終了
+              <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+            </label>
+          </div>
+          <p className="muted small">
+            対象: {dates.length}日（{dates.slice(0, 3).map((d) => d.slice(5).replace("-", "/")).join("、")}
+            {dates.length > 3 ? "…" : ""}） ×{" "}
+            {members.filter((m) => memberIds.includes(m.id)).map((m) => m.name).join("、")}
+          </p>
+          <div className="form-actions">
+            <button className="ghost" onClick={() => setOpen(false)}>キャンセル</button>
+            <button className="primary" onClick={create}>作成する</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 予定(シフト)ごとの業務チェックリスト
+function EventChecklist({ eventId }: { eventId: string }) {
+  const [items, setItems] = useState<ChecklistItem[]>(() => getChecklistItems(eventId));
+  const [text, setText] = useState("");
+  const [open, setOpen] = useState(false);
+
+  function refresh() {
+    setItems(getChecklistItems(eventId));
+  }
+
+  function add() {
+    if (!text.trim()) return;
+    addChecklistItem(eventId, text);
+    setText("");
+    refresh();
+  }
+
+  const doneCount = items.filter((i) => i.done).length;
+
+  return (
+    <div className="checklist-box" onClick={(ev) => ev.stopPropagation()}>
+      <button
+        type="button"
+        className="ghost mini checklist-toggle"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <ClipboardCheck size={12} strokeWidth={2} />
+        業務チェックリスト{items.length > 0 ? `（${doneCount}/${items.length}）` : ""}
+        {open ? " ▲" : " ▼"}
+      </button>
+      {open && (
+        <div className="checklist-body">
+          {items.map((i) => (
+            <label key={i.id} className={`checklist-item ${i.done ? "done" : ""}`}>
+              <input
+                type="checkbox"
+                checked={i.done}
+                onChange={() => {
+                  toggleChecklistItem(i.id);
+                  refresh();
+                }}
+              />
+              <span>{i.text}</span>
+              <button
+                type="button"
+                className="checklist-del"
+                onClick={() => {
+                  deleteChecklistItem(i.id);
+                  refresh();
+                }}
+              >
+                ×
+              </button>
+            </label>
+          ))}
+          <div className="checklist-add">
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="例: 布団を上げる"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  add();
+                }
+              }}
+            />
+            <button type="button" className="ghost mini" onClick={add}>
+              ＋追加
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 日付ごとの申し送り・引き継ぎメモ（全員が閲覧・追加できる）
+function HandoverNotes({
+  date,
+  me,
+  users,
+}: {
+  date: string;
+  me: User;
+  users: User[];
+}) {
+  const [notes, setNotes] = useState<HandoverNote[]>(() => handoverNotesOn(date));
+  const [text, setText] = useState("");
+
+  function refresh() {
+    setNotes(handoverNotesOn(date));
+  }
+
+  function add() {
+    if (!text.trim()) return;
+    addHandoverNote(date, me.id, text);
+    setText("");
+    refresh();
+  }
+
+  return (
+    <div className="handover-box">
+      <strong>申し送り・引き継ぎメモ</strong>
+      <div className="handover-list">
+        {notes.length === 0 && <span className="muted small">まだメモはありません</span>}
+        {notes.map((n) => {
+          const author = users.find((u) => u.id === n.userId)?.name ?? "?";
+          const time = new Date(n.createdAt).toLocaleString("ja-JP", {
+            month: "numeric",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          return (
+            <div key={n.id} className="handover-item">
+              <span className="handover-text">{n.text}</span>
+              <span className="handover-meta">
+                {author} ・ {time}
+                {n.userId === me.id && (
+                  <button
+                    type="button"
+                    className="handover-del"
+                    onClick={() => {
+                      deleteHandoverNote(n.id);
+                      refresh();
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="handover-add">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="例: 203号室の布団、明日交換予定です"
+          rows={2}
+        />
+        <button type="button" className="primary mini" onClick={add}>
+          追加
+        </button>
       </div>
     </div>
   );

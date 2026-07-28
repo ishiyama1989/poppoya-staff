@@ -1175,6 +1175,63 @@ label input, label select, label textarea { margin-top: 6px; font-weight: 400; }
 .pay-value { font-size: 24px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
 .pay-card.highlight .pay-value { color: var(--primary); }
 
+/* ===== 出退勤・遅刻欠勤連絡 ===== */
+.clock-box {
+  background: var(--card);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.clock-status { display: flex; gap: 20px; font-size: 14px; }
+.clock-status strong { font-size: 16px; }
+.clock-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.alert-form { display: flex; flex-direction: column; gap: 8px; }
+.alert-form textarea { width: 100%; resize: vertical; }
+
+/* ===== 業務チェックリスト（予定ごと） ===== */
+.checklist-box { margin-top: 8px; }
+.checklist-toggle { font-size: 11px; display: inline-flex; align-items: center; gap: 4px; }
+.checklist-body {
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: var(--bg);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.checklist-item { display: flex; align-items: center; gap: 6px; font-size: 12.5px; }
+.checklist-item.done span { text-decoration: line-through; color: var(--muted); }
+.checklist-item span { flex: 1; }
+.checklist-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0 4px; }
+.checklist-add { display: flex; gap: 6px; margin-top: 2px; }
+.checklist-add input { flex: 1; }
+
+/* ===== 申し送り・引き継ぎメモ ===== */
+.handover-box {
+  background: #fff8ee;
+  border: 1.5px solid rgba(255,122,89,0.18);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.handover-list { display: flex; flex-direction: column; gap: 6px; }
+.handover-item { font-size: 12.5px; display: flex; flex-direction: column; gap: 1px; }
+.handover-text { color: var(--text); }
+.handover-meta { font-size: 10.5px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+.handover-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; padding: 0 2px; }
+.handover-add { display: flex; gap: 8px; align-items: flex-end; }
+.handover-add textarea { flex: 1; resize: vertical; }
+
+.bulk-shift-box { margin-top: 12px; }
+
 .receipt-box {
   margin-top: 24px;
   background: var(--card);
@@ -1319,6 +1376,7 @@ label input, label select, label textarea { margin-top: 6px; font-weight: 400; }
 }
 .cal-cell.hit { background: rgba(255,122,89,0.07); }
 .cal-cell.hit:hover { background: rgba(255,122,89,0.12); }
+.cal-cell.short-staffed { box-shadow: inset 0 0 0 2px #dc2626; }
 .cal-cell.my-day { background: #fde8e8; }
 .cal-cell.my-day:hover { background: #fbd5d5; }
 .cal-cell.my-day .cal-date {

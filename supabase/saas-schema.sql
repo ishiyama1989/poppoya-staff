@@ -132,6 +132,36 @@ create table push_subscriptions (
   user_id text not null, subscription jsonb not null, created_at timestamptz default now()
 );
 
+-- 出退勤打刻
+create table time_clocks (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  user_id text not null, date text not null,
+  clock_in text, clock_out text
+);
+
+-- シフト(予定)ごとの業務チェックリスト
+create table shift_checklist_items (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  event_id text not null, text text not null, done boolean not null default false
+);
+
+-- 申し送り・引き継ぎメモ（日付単位）
+create table handover_notes (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  date text not null, user_id text not null, text text not null, created_at text
+);
+
+-- 遅刻・欠勤の連絡
+create table attendance_alerts (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  user_id text not null, date text not null, kind text not null,
+  note text default '', created_at text
+);
+
 -- 宿泊予約（ねっぱん！のiCalフィードから sync-neppan Edge Function が同期。アプリからは読み取り専用）
 create table reservations (
   id text primary key,
@@ -163,7 +193,8 @@ begin
   foreach t in array array[
     'schedule_events','availability','app_requests','pay_confirmations',
     'recipients','comment_templates','video_tasks','event_approvals',
-    'projects','project_materials','push_subscriptions'
+    'projects','project_materials','push_subscriptions',
+    'time_clocks','shift_checklist_items','handover_notes','attendance_alerts'
   ] loop
     execute format('alter table %I enable row level security;', t);
     execute format('create policy s on %I for select using (org_id = auth_org_id());', t);

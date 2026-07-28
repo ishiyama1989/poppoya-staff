@@ -259,6 +259,49 @@ export interface Reservation {
   status: ReservationStatus;
 }
 
+// 出退勤打刻（1ユーザー・1日1レコード）
+export interface TimeClock {
+  id: string;
+  userId: string;
+  date: string; // "YYYY-MM-DD"
+  clockIn?: string; // ISO日時
+  clockOut?: string; // ISO日時
+}
+
+// シフト(予定)ごとの業務チェックリスト
+export interface ChecklistItem {
+  id: string;
+  eventId: string;
+  text: string;
+  done: boolean;
+}
+
+// 申し送り・引き継ぎメモ（日付単位・全員が閲覧/追加可能）
+export interface HandoverNote {
+  id: string;
+  date: string; // "YYYY-MM-DD"
+  userId: string; // 書いた人
+  text: string;
+  createdAt: string; // ISO日時
+}
+
+// 遅刻・欠勤の連絡
+export type AttendanceAlertKind = "late" | "absent";
+
+export const ATTENDANCE_ALERT_LABEL: Record<AttendanceAlertKind, string> = {
+  late: "遅刻",
+  absent: "欠勤",
+};
+
+export interface AttendanceAlert {
+  id: string;
+  userId: string;
+  date: string; // "YYYY-MM-DD"
+  kind: AttendanceAlertKind;
+  note: string;
+  createdAt: string; // ISO日時
+}
+
 // 動画編集依頼（依頼管理機能）
 export type VideoTaskStatus = "pending" | "accepted" | "submitted" | "completed" | "rejected" | "cancelled";
 

@@ -1,15 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
 import type {
   AppRequest,
+  AttendanceAlert,
   Availability,
+  ChecklistItem,
   CommentTemplate,
   EventApproval,
+  HandoverNote,
   PayConfirmation,
   Project,
   ProjectMaterial,
   Recipient,
   Reservation,
   ScheduleEvent,
+  TimeClock,
   User,
   VideoTask,
 } from '../types'
@@ -309,6 +313,70 @@ const fromDbMaterial = (r: any): ProjectMaterial => ({
   confirmedAt: r.confirmed_at ?? undefined,
 })
 
+const toDbTimeClock = (t: TimeClock) => ({
+  id: t.id,
+  user_id: t.userId,
+  date: t.date,
+  clock_in: t.clockIn ?? null,
+  clock_out: t.clockOut ?? null,
+})
+
+const fromDbTimeClock = (r: any): TimeClock => ({
+  id: r.id,
+  userId: r.user_id,
+  date: r.date,
+  clockIn: r.clock_in ?? undefined,
+  clockOut: r.clock_out ?? undefined,
+})
+
+const toDbChecklistItem = (c: ChecklistItem) => ({
+  id: c.id,
+  event_id: c.eventId,
+  text: c.text,
+  done: c.done,
+})
+
+const fromDbChecklistItem = (r: any): ChecklistItem => ({
+  id: r.id,
+  eventId: r.event_id,
+  text: r.text,
+  done: r.done ?? false,
+})
+
+const toDbHandoverNote = (n: HandoverNote) => ({
+  id: n.id,
+  date: n.date,
+  user_id: n.userId,
+  text: n.text,
+  created_at: n.createdAt,
+})
+
+const fromDbHandoverNote = (r: any): HandoverNote => ({
+  id: r.id,
+  date: r.date,
+  userId: r.user_id,
+  text: r.text,
+  createdAt: r.created_at ?? '',
+})
+
+const toDbAttendanceAlert = (a: AttendanceAlert) => ({
+  id: a.id,
+  user_id: a.userId,
+  date: a.date,
+  kind: a.kind,
+  note: a.note,
+  created_at: a.createdAt,
+})
+
+const fromDbAttendanceAlert = (r: any): AttendanceAlert => ({
+  id: r.id,
+  userId: r.user_id,
+  date: r.date,
+  kind: r.kind,
+  note: r.note ?? '',
+  createdAt: r.created_at ?? '',
+})
+
 // 宿泊予約（ねっぱん！から同期。読み取り専用なので toDb 変換は不要）
 const fromDbReservation = (r: any): Reservation => ({
   id: r.id,
@@ -432,6 +500,22 @@ export function syncProjectMaterials(list: ProjectMaterial[]): void {
   upsertRows('project_materials', list, toDbMaterial, 'id').catch(() => {})
 }
 
+export function syncTimeClocks(list: TimeClock[]): void {
+  upsertRows('time_clocks', list, toDbTimeClock, 'id').catch(() => {})
+}
+
+export function syncChecklistItems(list: ChecklistItem[]): void {
+  upsertRows('shift_checklist_items', list, toDbChecklistItem, 'id').catch(() => {})
+}
+
+export function syncHandoverNotes(list: HandoverNote[]): void {
+  upsertRows('handover_notes', list, toDbHandoverNote, 'id').catch(() => {})
+}
+
+export function syncAttendanceAlerts(list: AttendanceAlert[]): void {
+  upsertRows('attendance_alerts', list, toDbAttendanceAlert, 'id').catch(() => {})
+}
+
 // 資料ファイルを Storage にアップロードし、公開URLとパスを返す
 export async function uploadMaterialFile(
   projectId: string,
@@ -452,6 +536,7 @@ export async function loadOrgData(): Promise<void> {
   const [
     profiles, events, avail, requests, pay, recipients,
     templates, videoTasks, approvals, projects, materials, reservations,
+    timeClocks, checklistItems, handoverNotes, attendanceAlerts,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
     supabase.from('schedule_events').select('*'),
@@ -465,6 +550,10 @@ export async function loadOrgData(): Promise<void> {
     supabase.from('projects').select('*'),
     supabase.from('project_materials').select('*'),
     supabase.from('reservations').select('*'),
+    supabase.from('time_clocks').select('*'),
+    supabase.from('shift_checklist_items').select('*'),
+    supabase.from('handover_notes').select('*'),
+    supabase.from('attendance_alerts').select('*'),
   ])
   const put = (key: string, rows: any[] | null | undefined, map: (r: any) => unknown) => {
     if (rows) localStorage.setItem(key, JSON.stringify(rows.map(map)))
@@ -481,6 +570,10 @@ export async function loadOrgData(): Promise<void> {
   put('sns_projects', projects.data, fromDbProject)
   put('sns_project_materials', materials.data, fromDbMaterial)
   put('sns_reservations', reservations.data, fromDbReservation)
+  put('sns_time_clocks', timeClocks.data, fromDbTimeClock)
+  put('sns_checklist_items', checklistItems.data, fromDbChecklistItem)
+  put('sns_handover_notes', handoverNotes.data, fromDbHandoverNote)
+  put('sns_attendance_alerts', attendanceAlerts.data, fromDbAttendanceAlert)
 }
 
 // ---- Hydration: Supabase → localStorage on app start（旧・単一テナント用。SaaS版では未使用） ----

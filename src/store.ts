@@ -1,12 +1,17 @@
 import type {
   AppRequest,
+  AttendanceAlert,
+  AttendanceAlertKind,
   Availability,
+  ChecklistItem,
   CommentTemplate,
+  HandoverNote,
   PayConfirmation,
   Recipient,
   RecipientType,
   Reservation,
   ScheduleEvent,
+  TimeClock,
   User,
   VideoTask,
 } from "./types";
@@ -25,6 +30,10 @@ import {
   syncEventApprovals,
   syncProjects,
   syncProjectMaterials,
+  syncTimeClocks,
+  syncChecklistItems,
+  syncHandoverNotes,
+  syncAttendanceAlerts,
   deleteRemote,
 } from "./lib/supabase";
 
@@ -42,6 +51,10 @@ const KEYS = {
   projects: "sns_projects",
   materials: "sns_project_materials",
   reservations: "sns_reservations",
+  timeClocks: "sns_time_clocks",
+  checklistItems: "sns_checklist_items",
+  handoverNotes: "sns_handover_notes",
+  attendanceAlerts: "sns_attendance_alerts",
   version: "sns_schema_version",
 };
 
@@ -811,4 +824,168 @@ export function reservationsOn(date: string): Reservation[] {
       r.checkinDate <= date &&
       date < r.checkoutDate
   );
+}
+
+// ---- 出退勤打刻 ----
+export function getTimeClocks(): TimeClock[] {
+  return read<TimeClock[]>(KEYS.timeClocks, []);
+}
+
+function saveTimeClocks(list: TimeClock[]): void {
+  write(KEYS.timeClocks, list);
+  syncTimeClocks(list);
+}
+
+export function timeClockFor(userId: string, date: string): TimeClock | null {
+  return (
+    getTimeClocks().find((t) => t.userId === userId && t.date === date) ?? null
+  );
+}
+
+// 自分の直近の打刻履歴（新しい順）
+export function timeClocksForUser(userId: string, limit = 14): TimeClock[] {
+  return getTimeClocks()
+    .filter((t) => t.userId === userId)
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+    .slice(0, limit);
+}
+
+export function clockIn(userId: string): TimeClock {
+  const date = today();
+  const list = getTimeClocks();
+  const idx = list.findIndex((t) => t.userId === userId && t.date === date);
+  const now = new Date().toISOString();
+  let rec: TimeClock;
+  if (idx >= 0) {
+    rec = { ...list[idx], clockIn: list[idx].clockIn ?? now };
+    list[idx] = rec;
+  } else {
+    rec = { id: uid(), userId, date, clockIn: now };
+    list.push(rec);
+  }
+  saveTimeClocks(list);
+  return rec;
+}
+
+export function clockOut(userId: string): TimeClock {
+  const date = today();
+  const list = getTimeClocks();
+  const idx = list.findIndex((t) => t.userId === userId && t.date === date);
+  const now = new Date().toISOString();
+  let rec: TimeClock;
+  if (idx >= 0) {
+    rec = { ...list[idx], clockOut: now };
+    list[idx] = rec;
+  } else {
+    rec = { id: uid(), userId, date, clockOut: now };
+    list.push(rec);
+  }
+  saveTimeClocks(list);
+  return rec;
+}
+
+// ---- シフト(予定)ごとの業務チェックリスト ----
+export function getChecklistItems(eventId: string): ChecklistItem[] {
+  return read<ChecklistItem[]>(KEYS.checklistItems, []).filter(
+    (c) => c.eventId === eventId
+  );
+}
+
+function saveChecklistItems(list: ChecklistItem[]): void {
+  write(KEYS.checklistItems, list);
+  syncChecklistItems(list);
+}
+
+export function addChecklistItem(eventId: string, text: string): ChecklistItem | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const all = read<ChecklistItem[]>(KEYS.checklistItems, []);
+  const item: ChecklistItem = { id: uid(), eventId, text: trimmed, done: false };
+  all.push(item);
+  saveChecklistItems(all);
+  return item;
+}
+
+export function toggleChecklistItem(id: string): void {
+  const all = read<ChecklistItem[]>(KEYS.checklistItems, []);
+  saveChecklistItems(all.map((c) => (c.id === id ? { ...c, done: !c.done } : c)));
+}
+
+export function deleteChecklistItem(id: string): void {
+  const all = read<ChecklistItem[]>(KEYS.checklistItems, []).filter((c) => c.id !== id);
+  write(KEYS.checklistItems, all);
+  deleteRemote("shift_checklist_items", { id });
+}
+
+// ---- 申し送り・引き継ぎメモ ----
+export function getHandoverNotes(): HandoverNote[] {
+  return read<HandoverNote[]>(KEYS.handoverNotes, []);
+}
+
+export function handoverNotesOn(date: string): HandoverNote[] {
+  return getHandoverNotes()
+    .filter((n) => n.date === date)
+    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
+}
+
+function saveHandoverNotes(list: HandoverNote[]): void {
+  write(KEYS.handoverNotes, list);
+  syncHandoverNotes(list);
+}
+
+export function addHandoverNote(
+  date: string,
+  userId: string,
+  text: string
+): HandoverNote | null {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const note: HandoverNote = {
+    id: uid(),
+    date,
+    userId,
+    text: trimmed,
+    createdAt: new Date().toISOString(),
+  };
+  saveHandoverNotes([...getHandoverNotes(), note]);
+  return note;
+}
+
+export function deleteHandoverNote(id: string): void {
+  write(KEYS.handoverNotes, getHandoverNotes().filter((n) => n.id !== id));
+  deleteRemote("handover_notes", { id });
+}
+
+// ---- 遅刻・欠勤の連絡 ----
+export function getAttendanceAlerts(): AttendanceAlert[] {
+  return read<AttendanceAlert[]>(KEYS.attendanceAlerts, []);
+}
+
+function saveAttendanceAlerts(list: AttendanceAlert[]): void {
+  write(KEYS.attendanceAlerts, list);
+  syncAttendanceAlerts(list);
+}
+
+export function reportAttendanceAlert(
+  userId: string,
+  kind: AttendanceAlertKind,
+  note: string
+): AttendanceAlert {
+  const alert: AttendanceAlert = {
+    id: uid(),
+    userId,
+    date: today(),
+    kind,
+    note: note.trim(),
+    createdAt: new Date().toISOString(),
+  };
+  saveAttendanceAlerts([...getAttendanceAlerts(), alert]);
+  return alert;
+}
+
+export function todaysAttendanceAlerts(): AttendanceAlert[] {
+  const t = today();
+  return getAttendanceAlerts()
+    .filter((a) => a.date === t)
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
