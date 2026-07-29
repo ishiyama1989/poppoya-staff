@@ -8,15 +8,37 @@ import type {
 import { changePassword, updateUserProfile } from "../store";
 import { STAMP_FONTS, stampSvg } from "../lib/stamp";
 import { disablePush, enablePush, isPushEnabled, pushSupported } from "../lib/push";
+import { updateOrgTheme } from "../lib/auth";
+import { applyTheme, THEME_OPTIONS } from "../lib/theme";
 
 // メンバーが自分のプロフィール（住所等）とデジタル印影を設定する画面
 export default function ProfileSettings({
   me,
+  orgId,
+  orgTheme,
   onUpdated,
 }: {
   me: User;
+  orgId: string;
+  orgTheme: string;
   onUpdated: (u: User) => void;
 }) {
+  const [theme, setTheme] = useState(orgTheme);
+  const [themeBusy, setThemeBusy] = useState(false);
+
+  async function pickTheme(id: string) {
+    if (id === theme || themeBusy) return;
+    setThemeBusy(true);
+    applyTheme(id); // 先に見た目を切り替え、保存は裏で行う
+    setTheme(id);
+    const res = await updateOrgTheme(orgId, id);
+    if (!res.ok) {
+      applyTheme(orgTheme);
+      setTheme(orgTheme);
+      alert("テーマの保存に失敗しました: " + res.error);
+    }
+    setThemeBusy(false);
+  }
   const [receiptName, setReceiptName] = useState(me.receiptName ?? "");
   const [postalCode, setPostalCode] = useState(me.postalCode ?? "");
   const [address, setAddress] = useState(me.address ?? "");
@@ -115,6 +137,30 @@ export default function ProfileSettings({
           ここで登録した情報は、領収書の発行時に自動で反映されます。
         </p>
       </div>
+
+      {me.role === "owner" && (
+        <div className="settings-card">
+          <h3>デザインテーマ</h3>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            画面の配色を選べます。全メンバーの画面に反映されます。
+          </p>
+          <div className="theme-picker">
+            {THEME_OPTIONS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`theme-swatch-btn ${theme === t.id ? "on" : ""}`}
+                disabled={themeBusy}
+                onClick={() => pickTheme(t.id)}
+              >
+                <span className="theme-swatch" style={{ background: t.swatch }} />
+                {t.label}
+                {theme === t.id && <span className="theme-check">✓</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="settings-card">
         <h3>プッシュ通知</h3>

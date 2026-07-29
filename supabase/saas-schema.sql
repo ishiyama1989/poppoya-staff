@@ -10,6 +10,7 @@ create table organizations (
   name text not null,
   plan text not null default 'free',
   neppan_ical_url text, -- ねっぱん！のiCal(.ics)フィードURL（未設定ならnull=同期しない）
+  theme text not null default 'coral', -- 画面の配色テーマ（coral/ocean/forest/lavender/charcoal）
   created_at timestamptz default now()
 );
 

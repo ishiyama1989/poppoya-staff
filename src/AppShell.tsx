@@ -9,6 +9,7 @@ import {
   type Profile,
 } from "./lib/auth";
 import { loadOrgData, setOrgId, supabase } from "./lib/supabase";
+import { applyTheme } from "./lib/theme";
 import Auth from "./components/Auth";
 import CreateOrg from "./components/CreateOrg";
 import App from "./App";
@@ -54,6 +55,7 @@ export default function AppShell() {
     setOrgId(profile.orgId);
     localStorage.setItem("sns_session", profile.id); // store.currentUser() 用
     await loadOrgData();
+    applyTheme(o?.theme);
     setMe(toUser(profile));
     setOrg(o);
     setStage("ready");
@@ -92,7 +94,9 @@ export default function AppShell() {
   return (
     <App
       me={me!}
+      orgId={org?.id ?? ""}
       orgName={org?.name ?? ""}
+      orgTheme={org?.theme ?? "coral"}
       joinCode={org?.joinCode}
       onLogout={handleLogout}
     />

@@ -41,12 +41,16 @@ type Tab =
 
 export default function App({
   me,
+  orgId,
   orgName,
+  orgTheme,
   joinCode,
   onLogout,
 }: {
   me: User;
+  orgId: string;
   orgName: string;
+  orgTheme: string;
   joinCode?: string;
   onLogout: () => void;
 }) {
@@ -149,7 +153,12 @@ export default function App({
         {tab === "projects" && <Projects me={user} />}
         {tab === "history" && <WorkHistory me={user} />}
         {tab === "settings" && (
-          <ProfileSettings me={user} onUpdated={(u) => setUser(u)} />
+          <ProfileSettings
+            me={user}
+            orgId={orgId}
+            orgTheme={orgTheme}
+            onUpdated={(u) => setUser(u)}
+          />
         )}
         {tab === "members" && isOwner && <OwnerMembers joinCode={joinCode} />}
         {tab === "payments" && isOwner && <Payments />}

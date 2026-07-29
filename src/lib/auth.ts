@@ -25,6 +25,7 @@ export interface Org {
   name: string;
   plan: string;
   joinCode?: string;
+  theme: string;
 }
 
 export async function signUp(email: string, password: string) {
@@ -84,7 +85,23 @@ export async function getMyProfile(): Promise<Profile | null> {
 export async function getMyOrg(): Promise<Org | null> {
   const { data, error } = await supabase.from("organizations").select("*").maybeSingle();
   if (error || !data) return null;
-  return { id: data.id, name: data.name, plan: data.plan ?? "free", joinCode: data.join_code ?? undefined };
+  return {
+    id: data.id,
+    name: data.name,
+    plan: data.plan ?? "free",
+    joinCode: data.join_code ?? undefined,
+    theme: data.theme ?? "coral",
+  };
+}
+
+// 会社の配色テーマを変更する
+export async function updateOrgTheme(
+  orgId: string,
+  theme: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.from("organizations").update({ theme }).eq("id", orgId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
 }
 
 // 招待コードでメンバーとして組織に参加

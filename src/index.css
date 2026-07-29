@@ -27,6 +27,40 @@
   font-feature-settings: 'cv01','cv03','cv04';
 }
 
+/* ===== 配色テーマ（会社ごとに選択。:root=コーラルが既定） ===== */
+:root[data-theme="ocean"] {
+  --bg: #eef6fb; --card: #ffffff; --line: #d7e9f5;
+  --text: #10202b; --text-2: #33566b; --muted: #86a8bb;
+  --primary: #2f8fd0; --primary-d: #1f74ad; --primary-light: #e6f2fb;
+  --shadow-sm: 0 2px 5px rgba(47,143,208,0.10), 0 0 0 1px rgba(20,50,70,0.05);
+  --shadow: 0 6px 18px rgba(30,100,150,0.12), 0 1px 3px rgba(20,50,70,0.06);
+  --shadow-lg: 0 22px 52px rgba(30,100,150,0.18), 0 4px 14px rgba(20,50,70,0.09);
+}
+:root[data-theme="forest"] {
+  --bg: #f1f8f1; --card: #ffffff; --line: #dcecdc;
+  --text: #16241a; --text-2: #3c5940; --muted: #94ab97;
+  --primary: #3f9142; --primary-d: #2f7433; --primary-light: #e9f5e9;
+  --shadow-sm: 0 2px 5px rgba(63,145,66,0.10), 0 0 0 1px rgba(20,40,25,0.05);
+  --shadow: 0 6px 18px rgba(40,110,45,0.12), 0 1px 3px rgba(20,40,25,0.06);
+  --shadow-lg: 0 22px 52px rgba(40,110,45,0.18), 0 4px 14px rgba(20,40,25,0.09);
+}
+:root[data-theme="lavender"] {
+  --bg: #f6f2fb; --card: #ffffff; --line: #e6dbf3;
+  --text: #221a2b; --text-2: #4d3d5c; --muted: #a595b3;
+  --primary: #8a5cd6; --primary-d: #7040bf; --primary-light: #f0e9fb;
+  --shadow-sm: 0 2px 5px rgba(138,92,214,0.10), 0 0 0 1px rgba(40,25,55,0.05);
+  --shadow: 0 6px 18px rgba(112,64,191,0.12), 0 1px 3px rgba(40,25,55,0.06);
+  --shadow-lg: 0 22px 52px rgba(112,64,191,0.18), 0 4px 14px rgba(40,25,55,0.09);
+}
+:root[data-theme="charcoal"] {
+  --bg: #f3f5f8; --card: #ffffff; --line: #dde3ea;
+  --text: #161c24; --text-2: #3d4a59; --muted: #8b97a5;
+  --primary: #34506e; --primary-d: #22384f; --primary-light: #e8edf3;
+  --shadow-sm: 0 2px 5px rgba(52,80,110,0.10), 0 0 0 1px rgba(20,25,35,0.05);
+  --shadow: 0 6px 18px rgba(34,56,79,0.12), 0 1px 3px rgba(20,25,35,0.06);
+  --shadow-lg: 0 22px 52px rgba(34,56,79,0.18), 0 4px 14px rgba(20,25,35,0.09);
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html, body, #root { margin: 0; height: 100%; }
