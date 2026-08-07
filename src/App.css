@@ -374,13 +374,6 @@ label input, label select, label textarea { margin-top: 6px; font-weight: 400; }
 
 .reward-toggle .shape-toggle { margin-top: 4px; }
 
-/* 招待コード */
-.invite-card { background: var(--primary-light); }
-.invite-code-row { display: flex; align-items: center; gap: 12px; margin: 6px 0; }
-.invite-code {
-  font-size: 26px; font-weight: 800; letter-spacing: 4px;
-  color: var(--primary-d); font-family: ui-monospace, monospace;
-}
 
 /* 稼働履歴 */
 .history-controls {

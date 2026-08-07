@@ -47,6 +47,30 @@ begin
   return new_org;
 end $$;
 
+-- 1社専用運用向け：最初の1人は会社を自動作成してオーナーに、
+-- 2人目以降は既存の（最初に作られた）会社へ自動的にメンバー参加する。
+-- 会社作成・招待コードの入力をユーザーに求めない。
+create or replace function join_or_create_org(member_name text)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare target_org uuid;
+begin
+  if exists (select 1 from profiles where id = auth.uid()) then
+    raise exception 'already has a profile';
+  end if;
+  select id into target_org from organizations order by created_at limit 1;
+  if target_org is null then
+    insert into organizations(name) values ('宿ぽっぽや') returning id into target_org;
+    insert into profiles(id, org_id, name, role, email)
+      values (auth.uid(), target_org, member_name, 'owner',
+              (select email from auth.users where id = auth.uid()));
+  else
+    insert into profiles(id, org_id, name, role, email)
+      values (auth.uid(), target_org, member_name, 'member',
+              (select email from auth.users where id = auth.uid()));
+  end if;
+  return target_org;
+end $$;
+
 -- ---- データテーブル（すべて org_id を持ち、RLSで自組織のみ） ----
 create table schedule_events (
   id text primary key,

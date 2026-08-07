@@ -24,16 +24,23 @@ export interface Org {
   id: string;
   name: string;
   plan: string;
-  joinCode?: string;
   theme: string;
 }
 
-export async function signUp(email: string, password: string) {
-  return supabase.auth.signUp({ email: email.trim(), password });
+// ログインID(半角英数)だけで使えるように、内部的にSupabase Auth用のメールアドレスへ変換する。
+// メール確認は無効化しているため実際に届く必要はない（ダミードメイン）。
+const LOGIN_ID_DOMAIN = "poppoya-staff.app";
+
+export function loginIdToEmail(loginId: string): string {
+  return `${loginId.trim().toLowerCase()}@${LOGIN_ID_DOMAIN}`;
 }
 
-export async function signIn(email: string, password: string) {
-  return supabase.auth.signInWithPassword({ email: email.trim(), password });
+export async function signUp(loginId: string, password: string) {
+  return supabase.auth.signUp({ email: loginIdToEmail(loginId), password });
+}
+
+export async function signIn(loginId: string, password: string) {
+  return supabase.auth.signInWithPassword({ email: loginIdToEmail(loginId), password });
 }
 
 export async function signOut() {
@@ -89,7 +96,6 @@ export async function getMyOrg(): Promise<Org | null> {
     id: data.id,
     name: data.name,
     plan: data.plan ?? "free",
-    joinCode: data.join_code ?? undefined,
     theme: data.theme ?? "coral",
   };
 }
@@ -104,30 +110,13 @@ export async function updateOrgTheme(
   return { ok: true };
 }
 
-// 招待コードでメンバーとして組織に参加
-export async function joinOrgByCode(
-  code: string,
+// サインアップ後、最初の1人は会社を自動作成してオーナーに、2人目以降は自動的にメンバーとして参加する
+// （1社専用の運用のため、会社作成・招待コードの入力は不要）
+export async function joinOrCreateOrg(
   memberName: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await supabase.rpc("join_org_by_code", {
-    code: code.trim(),
+  const { error } = await supabase.rpc("join_or_create_org", {
     member_name: memberName.trim(),
-  });
-  if (error) {
-    if (/invalid code/i.test(error.message)) return { ok: false, error: "招待コードが正しくありません" };
-    return { ok: false, error: error.message };
-  }
-  return { ok: true };
-}
-
-// サインアップ後、最初のログインで「組織＋オーナー」を作成
-export async function createOrg(
-  orgName: string,
-  ownerName: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { error } = await supabase.rpc("create_org_and_owner", {
-    org_name: orgName.trim(),
-    owner_name: ownerName.trim(),
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true };

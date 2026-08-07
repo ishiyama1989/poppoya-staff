@@ -97,7 +97,6 @@ export default function AppShell() {
       orgId={org?.id ?? ""}
       orgName={org?.name ?? ""}
       orgTheme={org?.theme ?? "coral"}
-      joinCode={org?.joinCode}
       onLogout={handleLogout}
     />
   );

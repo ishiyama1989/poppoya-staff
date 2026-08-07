@@ -3,20 +3,24 @@ import { signIn, signUp } from "../lib/auth";
 
 type Mode = "login" | "signup";
 
-// SaaS版の入口：メール＋パスワードでログイン / 新規登録
+const LOGIN_ID_PATTERN = /^[a-zA-Z0-9_-]{3,20}$/;
+
+// 宿ぽっぽや専用ツールの入口：ログインID（半角英数）＋パスワードでログイン/新規登録
 export default function Auth({ onLoggedIn }: { onLoggedIn: () => void }) {
   const [mode, setMode] = useState<Mode>("login");
-  const [email, setEmail] = useState("");
+  const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
 
   async function submit() {
     setError("");
-    setInfo("");
-    if (!email.trim() || !password) {
-      setError("メールとパスワードを入力してください");
+    if (!loginId.trim() || !password) {
+      setError("ログインIDとパスワードを入力してください");
+      return;
+    }
+    if (mode === "signup" && !LOGIN_ID_PATTERN.test(loginId.trim())) {
+      setError("ログインIDは半角英数字3〜20文字で入力してください");
       return;
     }
     if (mode === "signup" && password.length < 6) {
@@ -25,21 +29,11 @@ export default function Auth({ onLoggedIn }: { onLoggedIn: () => void }) {
     }
     setBusy(true);
     if (mode === "signup") {
-      const { data, error } = await signUp(email, password);
-      if (error) {
-        setError(translate(error.message));
-      } else if (data.session) {
-        // メール確認オフの場合は即ログイン
-        onLoggedIn();
-      } else {
-        // メール確認オンの場合
-        setInfo(
-          "確認メールを送信しました。メール内のリンクをタップして登録を完了し、ログインしてください。"
-        );
-        setMode("login");
-      }
+      const { error } = await signUp(loginId, password);
+      if (error) setError(translate(error.message));
+      else onLoggedIn();
     } else {
-      const { error } = await signIn(email, password);
+      const { error } = await signIn(loginId, password);
       if (error) setError(translate(error.message));
       else onLoggedIn();
     }
@@ -49,32 +43,31 @@ export default function Auth({ onLoggedIn }: { onLoggedIn: () => void }) {
   return (
     <div className="auth-wrap">
       <div className="auth-card">
-        <span className="logo"><span className="logo-dot" />SNS Schedule</span>
-        <p className="muted">運用代行チームの予定・報酬・案件をひとつに。</p>
+        <span className="logo"><span className="logo-dot" />宿ぽっぽや</span>
+        <p className="muted">スタッフ管理ツール</p>
 
         <div className="auth-tabs">
           <button
             className={mode === "login" ? "active" : ""}
-            onClick={() => { setMode("login"); setError(""); setInfo(""); }}
+            onClick={() => { setMode("login"); setError(""); }}
           >
             ログイン
           </button>
           <button
             className={mode === "signup" ? "active" : ""}
-            onClick={() => { setMode("signup"); setError(""); setInfo(""); }}
+            onClick={() => { setMode("signup"); setError(""); }}
           >
             新規登録
           </button>
         </div>
 
         <label>
-          メールアドレス
+          ログインID（半角英数字）
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            autoComplete="email"
+            value={loginId}
+            onChange={(e) => setLoginId(e.target.value)}
+            placeholder="例: yamada"
+            autoComplete="username"
           />
         </label>
         <label>
@@ -90,7 +83,6 @@ export default function Auth({ onLoggedIn }: { onLoggedIn: () => void }) {
         </label>
 
         {error && <p className="error">{error}</p>}
-        {info && <p className="muted" style={{ color: "var(--success)" }}>{info}</p>}
 
         <button className="primary full" disabled={busy} onClick={submit}>
           {busy ? "処理中…" : mode === "signup" ? "登録する" : "ログイン"}
@@ -98,7 +90,7 @@ export default function Auth({ onLoggedIn }: { onLoggedIn: () => void }) {
 
         {mode === "signup" && (
           <p className="muted small">
-            登録すると、次の画面で会社（組織）を作成します。
+            登録すると、次の画面でお名前を入力します。
           </p>
         )}
       </div>
@@ -107,9 +99,8 @@ export default function Auth({ onLoggedIn }: { onLoggedIn: () => void }) {
 }
 
 function translate(msg: string): string {
-  if (/Invalid login credentials/i.test(msg)) return "メールまたはパスワードが違います";
-  if (/already registered|already been registered/i.test(msg)) return "このメールは既に登録されています";
-  if (/Email not confirmed/i.test(msg)) return "メール確認が未完了です。確認メールのリンクを開いてください";
+  if (/Invalid login credentials/i.test(msg)) return "ログインIDまたはパスワードが違います";
+  if (/already registered|already been registered/i.test(msg)) return "このログインIDは既に使われています";
   if (/rate limit|too many/i.test(msg)) return "回数制限です。少し待って再度お試しください";
   return msg;
 }

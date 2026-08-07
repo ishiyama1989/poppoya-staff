@@ -44,14 +44,12 @@ export default function App({
   orgId,
   orgName,
   orgTheme,
-  joinCode,
   onLogout,
 }: {
   me: User;
   orgId: string;
   orgName: string;
   orgTheme: string;
-  joinCode?: string;
   onLogout: () => void;
 }) {
   const [user, setUser] = useState<User>(me);
@@ -160,7 +158,7 @@ export default function App({
             onUpdated={(u) => setUser(u)}
           />
         )}
-        {tab === "members" && isOwner && <OwnerMembers joinCode={joinCode} />}
+        {tab === "members" && isOwner && <OwnerMembers />}
         {tab === "payments" && isOwner && <Payments />}
         {tab === "tasks" && isOwner && <OwnerTasks me={user} />}
       </main>

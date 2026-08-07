@@ -2,11 +2,10 @@ import { useState } from "react";
 import { getMembers, updateUser } from "../store";
 import type { User } from "../types";
 
-// オーナーがメンバーを招待（コード共有）・編集する画面
-export default function OwnerMembers({ joinCode }: { joinCode?: string }) {
+// オーナーがメンバーを編集する画面
+export default function OwnerMembers() {
   const [version, setVersion] = useState(0);
   const [editing, setEditing] = useState<User | null>(null);
-  const [copied, setCopied] = useState(false);
   const members = getMembers();
   void version;
 
@@ -14,41 +13,19 @@ export default function OwnerMembers({ joinCode }: { joinCode?: string }) {
     setVersion((v) => v + 1);
   }
 
-  function copyCode() {
-    if (!joinCode) return;
-    navigator.clipboard?.writeText(joinCode).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    });
-  }
-
   return (
     <div className="members-view">
       <div className="section-head">
         <h2>メンバー管理</h2>
         <p className="muted">
-          メンバーを招待するには、下の招待コードを伝えてください。メンバーは新規登録時に
-          「招待コードで参加」を選び、このコードを入力します。
-        </p>
-      </div>
-
-      <div className="settings-card invite-card">
-        <h3>招待コード</h3>
-        <div className="invite-code-row">
-          <span className="invite-code">{joinCode ?? "—"}</span>
-          <button className="ghost" onClick={copyCode} disabled={!joinCode}>
-            {copied ? "コピーしました ✓" : "コピー"}
-          </button>
-        </div>
-        <p className="muted small">
-          このコードを知っている人だけが、あなたの会社にメンバーとして参加できます。
+          新しいスタッフは、ログイン画面の「新規登録」でログインIDとパスワードを作れば自動的に参加します。
         </p>
       </div>
 
       <h3 className="req-section-title">メンバー（{members.length}名）</h3>
       {members.length === 0 ? (
         <p className="muted">
-          まだメンバーがいません。招待コードを伝えて参加してもらいましょう。
+          まだメンバーがいません。新規登録の方法を伝えて参加してもらいましょう。
         </p>
       ) : (
         <table className="members-table">

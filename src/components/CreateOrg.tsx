@@ -1,14 +1,9 @@
 import { useState } from "react";
-import { createOrg, joinOrgByCode, signOut } from "../lib/auth";
+import { joinOrCreateOrg, signOut } from "../lib/auth";
 
-type Mode = "create" | "join";
-
-// サインアップ後：会社を新規作成する or 招待コードで既存の会社に参加する
+// サインアップ後：お名前を入力するだけで参加完了（1社専用のため会社作成・招待コードは不要）
 export default function CreateOrg({ onCreated }: { onCreated: () => void }) {
-  const [mode, setMode] = useState<Mode>("create");
-  const [orgName, setOrgName] = useState("");
   const [name, setName] = useState("");
-  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -19,22 +14,7 @@ export default function CreateOrg({ onCreated }: { onCreated: () => void }) {
       return;
     }
     setBusy(true);
-    let res;
-    if (mode === "create") {
-      if (!orgName.trim()) {
-        setError("会社・チーム名を入力してください");
-        setBusy(false);
-        return;
-      }
-      res = await createOrg(orgName, name);
-    } else {
-      if (!code.trim()) {
-        setError("招待コードを入力してください");
-        setBusy(false);
-        return;
-      }
-      res = await joinOrgByCode(code, name);
-    }
+    const res = await joinOrCreateOrg(name);
     setBusy(false);
     if (res.ok) onCreated();
     else setError(res.error);
@@ -44,37 +24,7 @@ export default function CreateOrg({ onCreated }: { onCreated: () => void }) {
     <div className="auth-wrap">
       <div className="auth-card">
         <span className="logo"><span className="logo-dot" />ようこそ</span>
-        <p className="muted">会社を新しく作るか、招待コードでチームに参加します。</p>
-
-        <div className="auth-tabs">
-          <button className={mode === "create" ? "active" : ""} onClick={() => { setMode("create"); setError(""); }}>
-            会社を作る
-          </button>
-          <button className={mode === "join" ? "active" : ""} onClick={() => { setMode("join"); setError(""); }}>
-            招待コードで参加
-          </button>
-        </div>
-
-        {mode === "create" ? (
-          <label>
-            会社・チーム名
-            <input
-              value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-              placeholder="例: ○○運用代行"
-            />
-          </label>
-        ) : (
-          <label>
-            招待コード
-            <input
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="例: A1B2C3"
-              autoCapitalize="characters"
-            />
-          </label>
-        )}
+        <p className="muted">お名前を入力して始めましょう。</p>
 
         <label>
           あなたのお名前
@@ -89,7 +39,7 @@ export default function CreateOrg({ onCreated }: { onCreated: () => void }) {
         {error && <p className="error">{error}</p>}
 
         <button className="primary full" disabled={busy} onClick={submit}>
-          {busy ? "処理中…" : mode === "create" ? "会社を作成して始める" : "参加する"}
+          {busy ? "処理中…" : "始める"}
         </button>
         <button className="ghost full" onClick={async () => { await signOut(); location.reload(); }}>
           ログアウト
