@@ -16,6 +16,7 @@ import type {
   VideoTask,
 } from "./types";
 import type { EventApproval, Project, ProjectMaterial } from "./types";
+import { pinToAuthPassword } from "./lib/auth";
 import {
   supabase,
   syncUsers,
@@ -188,16 +189,16 @@ export function currentUser(): User | null {
   return getUsers().find((u) => u.id === id) ?? null;
 }
 
-// SaaS版：パスワード変更は Supabase Auth で行う（6文字以上）
+// SaaS版：パスワード変更は Supabase Auth で行う（4桁の数字）
 export async function changePassword(
   _userId: string,
   _current: string,
   next: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (next.length < 6) {
-    return { ok: false, error: "新しいパスワードは6文字以上にしてください" };
+  if (!/^\d{4}$/.test(next)) {
+    return { ok: false, error: "パスワードは4桁の数字にしてください" };
   }
-  const { error } = await supabase.auth.updateUser({ password: next });
+  const { error } = await supabase.auth.updateUser({ password: pinToAuthPassword(next) });
   if (error) return { ok: false, error: error.message };
   return { ok: true };
 }

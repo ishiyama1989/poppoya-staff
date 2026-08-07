@@ -35,12 +35,23 @@ export function loginIdToEmail(loginId: string): string {
   return `${loginId.trim().toLowerCase()}@${LOGIN_ID_DOMAIN}`;
 }
 
-export async function signUp(loginId: string, password: string) {
-  return supabase.auth.signUp({ email: loginIdToEmail(loginId), password });
+// Supabaseはパスワード6文字未満を許可しないため、4桁PINの見た目のまま
+// 固定サフィックスを足して6文字にしてから送信する（ユーザー操作には影響しない）。
+const PIN_SUFFIX = "pp";
+
+export function pinToAuthPassword(pin: string): string {
+  return `${pin}${PIN_SUFFIX}`;
 }
 
-export async function signIn(loginId: string, password: string) {
-  return supabase.auth.signInWithPassword({ email: loginIdToEmail(loginId), password });
+export async function signUp(loginId: string, pin: string) {
+  return supabase.auth.signUp({ email: loginIdToEmail(loginId), password: pinToAuthPassword(pin) });
+}
+
+export async function signIn(loginId: string, pin: string) {
+  return supabase.auth.signInWithPassword({
+    email: loginIdToEmail(loginId),
+    password: pinToAuthPassword(pin),
+  });
 }
 
 export async function signOut() {

@@ -369,21 +369,25 @@ export default function ProfileSettings({
       <div className="settings-card">
         <h3>パスワード変更</h3>
         <label>
-          新しいパスワード（6文字以上）
+          新しいパスワード（4桁の数字）
           <input
             type="password"
-            placeholder="新しいパスワード"
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="0000"
             value={pwNext}
-            onChange={(e) => { setPwNext(e.target.value); setPwMsg(null); }}
+            onChange={(e) => { setPwNext(e.target.value.replace(/\D/g, "").slice(0, 4)); setPwMsg(null); }}
           />
         </label>
         <label>
           新しいパスワード（確認）
           <input
             type="password"
-            placeholder="もう一度入力"
+            inputMode="numeric"
+            maxLength={4}
+            placeholder="0000"
             value={pwNext2}
-            onChange={(e) => { setPwNext2(e.target.value); setPwMsg(null); }}
+            onChange={(e) => { setPwNext2(e.target.value.replace(/\D/g, "").slice(0, 4)); setPwMsg(null); }}
           />
         </label>
         {pwMsg && (

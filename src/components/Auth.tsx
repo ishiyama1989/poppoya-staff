@@ -23,8 +23,8 @@ export default function Auth({ onLoggedIn }: { onLoggedIn: () => void }) {
       setError("ログインIDは半角英数字3〜20文字で入力してください");
       return;
     }
-    if (mode === "signup" && password.length < 6) {
-      setError("パスワードは6文字以上にしてください");
+    if (mode === "signup" && !/^\d{4}$/.test(password)) {
+      setError("パスワードは4桁の数字にしてください");
       return;
     }
     setBusy(true);
@@ -71,12 +71,20 @@ export default function Auth({ onLoggedIn }: { onLoggedIn: () => void }) {
           />
         </label>
         <label>
-          パスワード{mode === "signup" ? "（6文字以上）" : ""}
+          パスワード{mode === "signup" ? "（4桁の数字）" : ""}
           <input
             type="password"
+            inputMode={mode === "signup" ? "numeric" : "text"}
+            maxLength={mode === "signup" ? 4 : undefined}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
+            onChange={(e) =>
+              setPassword(
+                mode === "signup"
+                  ? e.target.value.replace(/\D/g, "").slice(0, 4)
+                  : e.target.value
+              )
+            }
+            placeholder={mode === "signup" ? "0000" : "••••••••"}
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
             onKeyDown={(e) => e.key === "Enter" && submit()}
           />
