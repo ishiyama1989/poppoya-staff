@@ -13,7 +13,6 @@ import type {
   ScheduleEvent,
   TimeClock,
   User,
-  VideoTask,
 } from "./types";
 import type { EventApproval } from "./types";
 import { pinToAuthPassword } from "./lib/auth";
@@ -27,7 +26,6 @@ import {
   syncPayConfirmations,
   syncRecipients,
   syncTemplates,
-  syncVideoTasks,
   syncEventApprovals,
   syncTimeClocks,
   syncChecklistItems,
@@ -45,7 +43,6 @@ const KEYS = {
   requests: "sns_requests",
   payConf: "sns_pay_confirmations",
   recipients: "sns_recipients",
-  videoTasks: "sns_video_tasks",
   eventApprovals: "sns_event_approvals",
   reservations: "sns_reservations",
   timeClocks: "sns_time_clocks",
@@ -401,6 +398,20 @@ export function requestsForUser(userId: string): AppRequest[] {
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 }
 
+// オーナー：自分が送った依頼（すべて。日付が新しい順）
+export function requestsFromUser(userId: string): AppRequest[] {
+  return getRequests()
+    .filter((r) => r.fromUserId === userId)
+    .sort((a, b) => (a.date < b.date ? 1 : -1));
+}
+
+// オーナー：承認待ちの依頼件数（タブのバッジ表示用）
+export function pendingRequestsSentByUser(userId: string): number {
+  return getRequests().filter(
+    (r) => r.fromUserId === userId && r.status === "pending"
+  ).length;
+}
+
 export function approveRequest(id: string): void {
   const rs = getRequests();
   const r = rs.find((x) => x.id === id);
@@ -583,36 +594,6 @@ export async function deleteRecipient(id: string): Promise<void> {
     write(KEYS.recipients, all);
     throw error;
   }
-}
-
-// ---- 動画編集依頼 ----
-export function getVideoTasks(): VideoTask[] {
-  return read<VideoTask[]>(KEYS.videoTasks, []);
-}
-
-function saveVideoTasks(tasks: VideoTask[]): void {
-  write(KEYS.videoTasks, tasks);
-  syncVideoTasks(tasks);
-}
-
-export function addVideoTask(
-  data: Omit<VideoTask, "id" | "status" | "createdAt">
-): void {
-  const tasks = getVideoTasks();
-  tasks.push({ ...data, id: uid(), status: "pending", createdAt: today() });
-  saveVideoTasks(tasks);
-}
-
-export function updateVideoTask(id: string, patch: Partial<VideoTask>): void {
-  saveVideoTasks(getVideoTasks().map((t) => (t.id === id ? { ...t, ...patch } : t)));
-}
-
-export function pendingVideoTasksForUser(userId: string): VideoTask[] {
-  return getVideoTasks().filter((t) => t.toUserId === userId && t.status === "pending");
-}
-
-export function submittedVideoTasksCount(): number {
-  return getVideoTasks().filter((t) => t.status === "submitted").length;
 }
 
 // ---- 予定ごとの報酬承認 ----

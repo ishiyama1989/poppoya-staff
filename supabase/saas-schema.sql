@@ -119,16 +119,6 @@ create table comment_templates (
   user_id text not null, text text not null
 );
 
-create table video_tasks (
-  id text primary key,
-  org_id uuid not null references organizations(id) on delete cascade,
-  from_user_id text, to_user_id text,
-  title text not null, description text default '',
-  deadline text, amount integer default 0,
-  status text default 'pending', created_at text,
-  delivery_url text, delivery_note text, submitted_at text, completed_at text
-);
-
 create table event_approvals (
   id text primary key,
   org_id uuid not null references organizations(id) on delete cascade,
@@ -203,7 +193,7 @@ declare t text;
 begin
   foreach t in array array[
     'schedule_events','availability','app_requests','pay_confirmations',
-    'recipients','comment_templates','video_tasks','event_approvals',
+    'recipients','comment_templates','event_approvals',
     'push_subscriptions',
     'time_clocks','shift_checklist_items','handover_notes','attendance_alerts'
   ] loop

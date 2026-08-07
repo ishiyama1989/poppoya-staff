@@ -9,8 +9,7 @@ import {
   countAwaitingAdmin,
   pendingEventApprovalsForUser,
   pendingRequestsForUser,
-  pendingVideoTasksForUser,
-  submittedVideoTasksCount,
+  pendingRequestsSentByUser,
   todaysAttendanceAlerts,
 } from "./store";
 import Calendar from "./components/Calendar";
@@ -54,11 +53,9 @@ export default function App({
   const [tab, setTab] = useState<Tab>("calendar");
 
   const isOwner = user.role === "owner";
-  const pendingReqCount = isOwner ? 0 : pendingRequestsForUser(user.id).length;
-  const pendingVideoCount = isOwner ? 0 : pendingVideoTasksForUser(user.id).length;
-  const pendingCount = pendingReqCount + pendingVideoCount;
+  const pendingCount = isOwner ? 0 : pendingRequestsForUser(user.id).length;
   const payCount = isOwner ? 0 : pendingEventApprovalsForUser(user.id).length;
-  const taskCount = isOwner ? submittedVideoTasksCount() : 0;
+  const taskCount = isOwner ? pendingRequestsSentByUser(user.id) : 0;
   const awaitingCount = isOwner ? countAwaitingAdmin() : 0;
   const attendanceAlertCount = isOwner ? todaysAttendanceAlerts().length : 0;
   const tabs: { key: Tab; label: string; icon: LucideIcon; ownerOnly?: boolean; memberOnly?: boolean }[] = [

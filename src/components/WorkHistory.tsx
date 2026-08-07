@@ -4,7 +4,6 @@ import {
   getEventApprovals,
   getEvents,
   getMembers,
-  getVideoTasks,
 } from "../store";
 import { quarterLabel, quarterOf, todayStr, yen } from "../lib/date";
 import {
@@ -19,7 +18,6 @@ export default function WorkHistory({ me }: { me: User }) {
   const isOwner = me.role === "owner";
   const events = useMemo(() => getEvents(), []);
   const approvals = useMemo(() => getEventApprovals(), []);
-  const videoTasks = useMemo(() => getVideoTasks(), []);
   const members = useMemo(() => getMembers(), []);
 
   const [targetId, setTargetId] = useState(isOwner ? members[0]?.id ?? "" : me.id);
@@ -28,11 +26,11 @@ export default function WorkHistory({ me }: { me: User }) {
   const currentQuarter = quarterOf(todayStr());
   const quarters = useMemo(() => {
     const set = new Set<string>(
-      target ? workHistoryQuarters(events, videoTasks, target.id) : []
+      target ? workHistoryQuarters(events, target.id) : []
     );
     set.add(currentQuarter); // 現在の月は常に選べるようにする
     return Array.from(set).sort().reverse();
-  }, [events, videoTasks, target, currentQuarter]);
+  }, [events, target, currentQuarter]);
 
   // デフォルトは「現在の月」
   const [quarter, setQuarter] = useState(currentQuarter);
@@ -41,9 +39,9 @@ export default function WorkHistory({ me }: { me: User }) {
   const { rows, summary } = useMemo(
     () =>
       target
-        ? buildWorkHistory(events, approvals, videoTasks, target.id, quarter)
+        ? buildWorkHistory(events, approvals, target.id, quarter)
         : { rows: [], summary: { count: 0, totalHours: 0, confirmedAmount: 0, pendingAmount: 0 } },
-    [events, approvals, videoTasks, target, quarter]
+    [events, approvals, target, quarter]
   );
 
   function exportPdf() {

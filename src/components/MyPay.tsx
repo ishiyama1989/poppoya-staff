@@ -14,12 +14,10 @@ import {
   deleteRecipient,
   getEvents,
   getRecipients,
-  getVideoTasks,
   pendingEventApprovalsForUser,
   rejectEventApproval,
 } from "../store";
 import { quarterLabel, quarterOf, todayStr, yen } from "../lib/date";
-import { videoTasksForQuarter } from "../lib/pay";
 import { openReceiptPdf } from "../lib/receipt";
 import { stampSvg } from "../lib/stamp";
 
@@ -27,7 +25,6 @@ import { stampSvg } from "../lib/stamp";
 export default function MyPay({ me }: { me: User }) {
   const [version, setVersion] = useState(0);
   const events = useMemo(() => getEvents(), [version]);
-  const videoTasks = useMemo(() => getVideoTasks(), [version]);
 
   const eventById = useMemo(() => {
     const m: Record<string, ScheduleEvent> = {};
@@ -53,12 +50,9 @@ export default function MyPay({ me }: { me: User }) {
       const e = eventById[a.eventId];
       if (e) set.add(quarterOf(e.date));
     }
-    for (const t of videoTasks)
-      if (t.toUserId === me.id && t.status === "completed")
-        set.add(quarterOf(t.completedAt ?? t.deadline));
     const arr = Array.from(set).sort().reverse();
     return arr.length ? arr : [quarterOf(todayStr())];
-  }, [approved, videoTasks, eventById, me.id]);
+  }, [approved, eventById, me.id]);
 
   const [quarter, setQuarter] = useState(quarters[0]);
   if (!quarters.includes(quarter)) setQuarter(quarters[0]);
@@ -83,14 +77,9 @@ export default function MyPay({ me }: { me: User }) {
         }),
     [approved, eventById, quarter]
   );
-  const vTasks = useMemo(
-    () => videoTasksForQuarter(videoTasks, me.id, quarter),
-    [videoTasks, me.id, quarter]
-  );
 
   const workReward = approvedInQ.reduce((s, a) => s + a.amount, 0);
-  const videoReward = vTasks.reduce((s, t) => s + (t.amount || 0), 0);
-  const rewardAmount = workReward + videoReward;
+  const rewardAmount = workReward;
 
   function saveRecipient() {
     if (!issuedTo.trim()) return alert("宛名を入力してください。");
@@ -117,14 +106,6 @@ export default function MyPay({ me }: { me: User }) {
         receiptLines.push({ date: "", title: `　└ 交通費`, hours: 0, amount: a.expense });
       for (const it of a.extraItems ?? [])
         if (it.amount) receiptLines.push({ date: "", title: `　└ ${it.name}`, hours: 0, amount: it.amount });
-    }
-    for (const t of vTasks) {
-      receiptLines.push({
-        date: (t.completedAt ?? t.deadline).replace(/-/g, "/"),
-        title: `動画編集: ${t.title}`,
-        hours: 0,
-        amount: t.amount,
-      });
     }
     openReceiptPdf({
       receiptNo: `${quarter}-${me.id.slice(0, 4).toUpperCase()}`,
@@ -227,10 +208,6 @@ export default function MyPay({ me }: { me: User }) {
           <span className="pay-label">稼働報酬</span>
           <span className="pay-value">{yen(workReward)}</span>
         </div>
-        <div className="pay-card">
-          <span className="pay-label">動画報酬</span>
-          <span className="pay-value">{yen(videoReward)}</span>
-        </div>
         <div className="pay-card highlight">
           <span className="pay-label">確定報酬</span>
           <span className="pay-value">{yen(rewardAmount)}</span>
@@ -249,7 +226,7 @@ export default function MyPay({ me }: { me: User }) {
           </tr>
         </thead>
         <tbody>
-          {approvedInQ.length === 0 && vTasks.length === 0 ? (
+          {approvedInQ.length === 0 ? (
             <tr>
               <td colSpan={4} className="muted">
                 この期間の確定報酬はありません。
@@ -277,14 +254,6 @@ export default function MyPay({ me }: { me: User }) {
                   </tr>
                 );
               })}
-              {vTasks.map((t) => (
-                <tr key={t.id}>
-                  <td>{(t.completedAt ?? t.deadline).replace(/-/g, "/")}</td>
-                  <td>{t.title}</td>
-                  <td className="muted">動画編集</td>
-                  <td className="amount">{yen(t.amount)}</td>
-                </tr>
-              ))}
             </>
           )}
         </tbody>

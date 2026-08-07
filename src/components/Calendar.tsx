@@ -46,6 +46,7 @@ import { sendPushToUsers } from "../lib/push";
 import MapLinks from "./MapLinks";
 
 const TYPE_JP: Record<string, string> = {
+  shift: "出勤",
   shooting: "撮影",
   meeting: "会議",
   delivery: "納品",
@@ -895,6 +896,7 @@ function EventForm({
             value={draft.type}
             onChange={(e) => set("type", e.target.value as EventType)}
           >
+            <option value="shift">出勤</option>
             <option value="shooting">撮影</option>
             <option value="meeting">会議</option>
             <option value="delivery">納品</option>
@@ -1048,6 +1050,7 @@ function RequestForm({
         <label>
           種別
           <select value={type} onChange={(e) => setType(e.target.value as EventType)}>
+            <option value="shift">出勤</option>
             <option value="shooting">撮影</option>
             <option value="meeting">会議</option>
             <option value="delivery">納品</option>
@@ -1165,6 +1168,7 @@ function BulkShiftForm({
             <label>
               種別
               <select value={type} onChange={(e) => setType(e.target.value as EventType)}>
+                <option value="shift">出勤</option>
                 <option value="shooting">撮影</option>
                 <option value="meeting">会議</option>
                 <option value="delivery">納品</option>

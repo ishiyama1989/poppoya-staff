@@ -29,7 +29,7 @@ export interface User {
 }
 
 // 予定（いつ・どこで・誰が・何を）
-export type EventType = "shooting" | "meeting" | "delivery" | "other";
+export type EventType = "shift" | "shooting" | "meeting" | "delivery" | "other";
 
 export interface ScheduleEvent {
   id: string;
@@ -172,6 +172,7 @@ export interface CommentTemplate {
 }
 
 export const EVENT_TYPE_LABEL: Record<string, string> = {
+  shift: "出勤",
   shooting: "撮影",
   meeting: "会議",
   delivery: "納品",
@@ -180,6 +181,7 @@ export const EVENT_TYPE_LABEL: Record<string, string> = {
 };
 
 export const EVENT_TYPE_COLOR: Record<string, string> = {
+  shift: "#12b886",   // 緑
   shooting: "#f59e0b", // オレンジ
   meeting: "#8b5cf6", // 紫
   delivery: "#ef4444", // 赤
@@ -188,7 +190,7 @@ export const EVENT_TYPE_COLOR: Record<string, string> = {
 };
 
 // 凡例・選択肢に表示する順序
-export const EVENT_TYPES: EventType[] = ["shooting", "meeting", "delivery", "other"];
+export const EVENT_TYPES: EventType[] = ["shift", "shooting", "meeting", "delivery", "other"];
 
 // 宿泊予約（ねっぱん！のiCalフィードから同期。アプリ側では編集不可・読み取り専用）
 export type ReservationStatus = "confirmed" | "cancelled";
@@ -246,31 +248,3 @@ export interface AttendanceAlert {
   createdAt: string; // ISO日時
 }
 
-// 動画編集依頼（依頼管理機能）
-export type VideoTaskStatus = "pending" | "accepted" | "submitted" | "completed" | "rejected" | "cancelled";
-
-export const VIDEO_TASK_STATUS_LABEL: Record<VideoTaskStatus, string> = {
-  pending: "承認待ち",
-  accepted: "進行中",
-  submitted: "納品確認待ち",
-  completed: "完了",
-  rejected: "却下",
-  cancelled: "取り消し済み",
-};
-
-export interface VideoTask {
-  id: string;
-  fromUserId: string;   // 依頼した管理者
-  toUserId: string;     // 担当メンバー
-  title: string;
-  description: string;
-  deadline: string;     // YYYY-MM-DD
-  amount: number;
-  status: VideoTaskStatus;
-  createdAt: string;
-  deliveryUrl?: string;
-  deliveryNote?: string;
-  submittedAt?: string;
-  completedAt?: string;
-  cancelledAt?: string;
-}

@@ -13,7 +13,6 @@ import type {
   ScheduleEvent,
   TimeClock,
   User,
-  VideoTask,
 } from '../types'
 
 export const supabase = createClient(
@@ -189,39 +188,6 @@ const fromDbTemplate = (r: any): CommentTemplate => ({
   text: r.text,
 })
 
-const toDbVideoTask = (t: VideoTask) => ({
-  id: t.id,
-  from_user_id: t.fromUserId,
-  to_user_id: t.toUserId,
-  title: t.title,
-  description: t.description,
-  deadline: t.deadline,
-  amount: t.amount,
-  status: t.status,
-  created_at: t.createdAt,
-  delivery_url: t.deliveryUrl ?? null,
-  delivery_note: t.deliveryNote ?? null,
-  submitted_at: t.submittedAt ?? null,
-  completed_at: t.completedAt ?? null,
-  cancelled_at: t.cancelledAt ?? null,
-})
-
-const fromDbVideoTask = (r: any): VideoTask => ({
-  id: r.id,
-  fromUserId: r.from_user_id,
-  toUserId: r.to_user_id,
-  title: r.title,
-  description: r.description,
-  deadline: r.deadline,
-  amount: r.amount,
-  status: r.status,
-  createdAt: r.created_at,
-  deliveryUrl: r.delivery_url ?? undefined,
-  deliveryNote: r.delivery_note ?? undefined,
-  submittedAt: r.submitted_at ?? undefined,
-  completedAt: r.completed_at ?? undefined,
-  cancelledAt: r.cancelled_at ?? undefined,
-})
 
 const toDbEventApproval = (a: EventApproval) => ({
   id: a.id,
@@ -424,10 +390,6 @@ export function syncTemplates(templates: CommentTemplate[]): void {
   upsertRows('comment_templates', templates, toDbTemplate, 'id').catch(() => {})
 }
 
-export function syncVideoTasks(tasks: VideoTask[]): void {
-  upsertRows('video_tasks', tasks, toDbVideoTask, 'id').catch(() => {})
-}
-
 export function syncEventApprovals(list: EventApproval[]): void {
   upsertRows('event_approvals', list, toDbEventApproval, 'id').catch(() => {})
 }
@@ -452,7 +414,7 @@ export function syncAttendanceAlerts(list: AttendanceAlert[]): void {
 export async function loadOrgData(): Promise<void> {
   const [
     profiles, events, avail, requests, pay, recipients,
-    templates, videoTasks, approvals, reservations,
+    templates, approvals, reservations,
     timeClocks, checklistItems, handoverNotes, attendanceAlerts,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
@@ -462,7 +424,6 @@ export async function loadOrgData(): Promise<void> {
     supabase.from('pay_confirmations').select('*'),
     supabase.from('recipients').select('*'),
     supabase.from('comment_templates').select('*'),
-    supabase.from('video_tasks').select('*'),
     supabase.from('event_approvals').select('*'),
     supabase.from('reservations').select('*'),
     supabase.from('time_clocks').select('*'),
@@ -480,7 +441,6 @@ export async function loadOrgData(): Promise<void> {
   put('sns_pay_confirmations', pay.data, fromDbPayConf)
   put('sns_recipients', recipients.data, fromDbRecipient)
   put('sns_comment_templates', templates.data, fromDbTemplate)
-  put('sns_video_tasks', videoTasks.data, fromDbVideoTask)
   put('sns_event_approvals', approvals.data, fromDbEventApproval)
   put('sns_reservations', reservations.data, fromDbReservation)
   put('sns_time_clocks', timeClocks.data, fromDbTimeClock)
@@ -498,7 +458,7 @@ const SCHEMA_KEY = 'sns_schema_version'
 // 戻り値: ok=接続できたか, userCount=Supabase上のユーザー数
 export async function hydrateFromSupabase(): Promise<{ ok: boolean; userCount: number }> {
   try {
-    const [users, events, avail, requests, payConf, recipients, templates, videoTasks] =
+    const [users, events, avail, requests, payConf, recipients, templates] =
       await Promise.all([
         supabase.from('users').select('*'),
         supabase.from('schedule_events').select('*'),
@@ -507,7 +467,6 @@ export async function hydrateFromSupabase(): Promise<{ ok: boolean; userCount: n
         supabase.from('pay_confirmations').select('*'),
         supabase.from('recipients').select('*'),
         supabase.from('comment_templates').select('*'),
-        supabase.from('video_tasks').select('*'),
       ])
 
     if (users.error) throw users.error
@@ -519,7 +478,6 @@ export async function hydrateFromSupabase(): Promise<{ ok: boolean; userCount: n
     if (payConf.data) localStorage.setItem('sns_pay_confirmations', JSON.stringify(payConf.data.map(fromDbPayConf)))
     if (recipients.data) localStorage.setItem('sns_recipients', JSON.stringify(recipients.data.map(fromDbRecipient)))
     if (templates.data) localStorage.setItem('sns_comment_templates', JSON.stringify(templates.data.map(fromDbTemplate)))
-    if (videoTasks.data) localStorage.setItem('sns_video_tasks', JSON.stringify(videoTasks.data.map(fromDbVideoTask)))
 
     localStorage.setItem(SCHEMA_KEY, SCHEMA_VERSION)
 
