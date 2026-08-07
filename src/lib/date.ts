@@ -37,22 +37,16 @@ export function hoursBetween(start: string, end: string): number {
   return mins > 0 ? mins / 60 : 0;
 }
 
-// 日付がどの四半期（3ヶ月）に属するか。"2026-Q2" のような文字列を返す
+// 日付がどの月に属するか。"2026-08" のような文字列を返す
+// (関数名は quarterOf のままだが、集計単位は1ヶ月単位)
 export function quarterOf(dateStr: string): string {
   const [y, m] = dateStr.split("-").map(Number);
-  const q = Math.floor((m - 1) / 3) + 1;
-  return `${y}-Q${q}`;
+  return `${y}-${String(m).padStart(2, "0")}`;
 }
 
 export function quarterLabel(q: string): string {
-  const [y, qq] = q.split("-Q");
-  const ranges: Record<string, string> = {
-    "1": "1〜3月",
-    "2": "4〜6月",
-    "3": "7〜9月",
-    "4": "10〜12月",
-  };
-  return `${y}年 ${ranges[qq]}（第${qq}四半期）`;
+  const [y, m] = q.split("-");
+  return `${y}年${Number(m)}月`;
 }
 
 export function yen(n: number): string {

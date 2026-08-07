@@ -136,62 +136,6 @@ export const EVENT_APPROVAL_STATUS_LABEL: Record<EventApprovalStatus, string> = 
   rejected: "却下",
 };
 
-// 案件（請負中のクライアント案件）
-export type ProjectStatus = "active" | "paused" | "done";
-
-export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
-  active: "請負中",
-  paused: "一時停止",
-  done: "完了",
-};
-
-export interface Project {
-  id: string;
-  name: string; // 案件名・クライアント名
-  status: ProjectStatus;
-  description: string;
-  assigneeIds: string[]; // 担当メンバー
-  startDate: string; // "YYYY-MM-DD"
-  createdAt: string;
-}
-
-// 案件に紐づく資料（リンク or アップロードファイル）
-export type MaterialKind = "link" | "file";
-
-// 資料 = reference / 納品物 = deliverable
-export type MaterialCategory = "material" | "deliverable";
-// 納品物の種別
-export type DeliverableMediaType = "video" | "image" | "other";
-
-export const DELIVERABLE_MEDIA_LABEL: Record<DeliverableMediaType, string> = {
-  video: "動画",
-  image: "画像",
-  other: "その他",
-};
-
-// 納品物の確認状態（pending=確認待ち / confirmed=報酬確定）
-export type DeliverableStatus = "pending" | "confirmed";
-
-export interface ProjectMaterial {
-  id: string;
-  projectId: string;
-  title: string;
-  kind: MaterialKind;
-  url: string; // 資料のリンクURL / ストレージURL（納品物では空でも可）
-  filePath?: string; // ストレージ上のパス（fileの場合）
-  note?: string; // メモ
-  createdBy: string; // 登録したユーザーID
-  createdAt: string;
-  category?: MaterialCategory; // 既定: material（資料）
-  mediaType?: DeliverableMediaType; // 納品物の種別
-  assigneeId?: string; // 納品物の担当者（メンバー）
-  deliveredAt?: string; // 納品日 "YYYY-MM-DD"（未設定可）
-  // 納品物の報酬ワークフロー
-  delStatus?: DeliverableStatus; // 既定: pending
-  rewardAmount?: number; // 管理者が確定した報酬額
-  confirmedAt?: string; // 管理者が確定した日
-}
-
 // メンバーの空き状況
 // 時間帯（1日 / 午前 / 午後 / 夕方 / 夜）を複数選択 + コメント
 export type AvailSlot = "allday" | "morning" | "afternoon" | "evening" | "night";

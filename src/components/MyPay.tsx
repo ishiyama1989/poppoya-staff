@@ -12,7 +12,6 @@ import {
   approveEventApproval,
   approvedEventApprovalsForUser,
   deleteRecipient,
-  getConfirmedDeliverables,
   getEvents,
   getRecipients,
   getVideoTasks,
@@ -20,7 +19,7 @@ import {
   rejectEventApproval,
 } from "../store";
 import { quarterLabel, quarterOf, todayStr, yen } from "../lib/date";
-import { deliverablesForQuarter, videoTasksForQuarter } from "../lib/pay";
+import { videoTasksForQuarter } from "../lib/pay";
 import { openReceiptPdf } from "../lib/receipt";
 import { stampSvg } from "../lib/stamp";
 
@@ -29,7 +28,6 @@ export default function MyPay({ me }: { me: User }) {
   const [version, setVersion] = useState(0);
   const events = useMemo(() => getEvents(), [version]);
   const videoTasks = useMemo(() => getVideoTasks(), [version]);
-  const deliverables = useMemo(() => getConfirmedDeliverables(), [version]);
 
   const eventById = useMemo(() => {
     const m: Record<string, ScheduleEvent> = {};
@@ -58,12 +56,9 @@ export default function MyPay({ me }: { me: User }) {
     for (const t of videoTasks)
       if (t.toUserId === me.id && t.status === "completed")
         set.add(quarterOf(t.completedAt ?? t.deadline));
-    for (const d of deliverables)
-      if (d.assigneeId === me.id)
-        set.add(quarterOf(d.deliveredAt ?? d.confirmedAt ?? d.createdAt));
     const arr = Array.from(set).sort().reverse();
     return arr.length ? arr : [quarterOf(todayStr())];
-  }, [approved, videoTasks, deliverables, eventById, me.id]);
+  }, [approved, videoTasks, eventById, me.id]);
 
   const [quarter, setQuarter] = useState(quarters[0]);
   if (!quarters.includes(quarter)) setQuarter(quarters[0]);
@@ -92,15 +87,10 @@ export default function MyPay({ me }: { me: User }) {
     () => videoTasksForQuarter(videoTasks, me.id, quarter),
     [videoTasks, me.id, quarter]
   );
-  const dItems = useMemo(
-    () => deliverablesForQuarter(deliverables, me.id, quarter),
-    [deliverables, me.id, quarter]
-  );
 
   const workReward = approvedInQ.reduce((s, a) => s + a.amount, 0);
   const videoReward = vTasks.reduce((s, t) => s + (t.amount || 0), 0);
-  const deliverableReward = dItems.reduce((s, d) => s + (d.rewardAmount || 0), 0);
-  const rewardAmount = workReward + videoReward + deliverableReward;
+  const rewardAmount = workReward + videoReward;
 
   function saveRecipient() {
     if (!issuedTo.trim()) return alert("宛名を入力してください。");
@@ -134,14 +124,6 @@ export default function MyPay({ me }: { me: User }) {
         title: `動画編集: ${t.title}`,
         hours: 0,
         amount: t.amount,
-      });
-    }
-    for (const d of dItems) {
-      receiptLines.push({
-        date: (d.deliveredAt ?? d.confirmedAt ?? d.createdAt).replace(/-/g, "/"),
-        title: `納品物: ${d.title}`,
-        hours: 0,
-        amount: d.rewardAmount ?? 0,
       });
     }
     openReceiptPdf({
@@ -249,10 +231,6 @@ export default function MyPay({ me }: { me: User }) {
           <span className="pay-label">動画報酬</span>
           <span className="pay-value">{yen(videoReward)}</span>
         </div>
-        <div className="pay-card">
-          <span className="pay-label">納品報酬</span>
-          <span className="pay-value">{yen(deliverableReward)}</span>
-        </div>
         <div className="pay-card highlight">
           <span className="pay-label">確定報酬</span>
           <span className="pay-value">{yen(rewardAmount)}</span>
@@ -271,7 +249,7 @@ export default function MyPay({ me }: { me: User }) {
           </tr>
         </thead>
         <tbody>
-          {approvedInQ.length === 0 && vTasks.length === 0 && dItems.length === 0 ? (
+          {approvedInQ.length === 0 && vTasks.length === 0 ? (
             <tr>
               <td colSpan={4} className="muted">
                 この期間の確定報酬はありません。
@@ -305,14 +283,6 @@ export default function MyPay({ me }: { me: User }) {
                   <td>{t.title}</td>
                   <td className="muted">動画編集</td>
                   <td className="amount">{yen(t.amount)}</td>
-                </tr>
-              ))}
-              {dItems.map((d) => (
-                <tr key={d.id}>
-                  <td>{(d.deliveredAt ?? d.confirmedAt ?? d.createdAt).replace(/-/g, "/")}</td>
-                  <td>{d.title}</td>
-                  <td className="muted">納品物</td>
-                  <td className="amount">{yen(d.rewardAmount ?? 0)}</td>
                 </tr>
               ))}
             </>

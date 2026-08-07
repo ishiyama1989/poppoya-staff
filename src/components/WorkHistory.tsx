@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import type { User } from "../types";
 import {
-  getConfirmedDeliverables,
   getEventApprovals,
   getEvents,
   getMembers,
@@ -15,13 +14,12 @@ import {
 } from "../lib/pay";
 import { openWorkHistoryPdf } from "../lib/historyPdf";
 
-// 四半期ごとの稼働履歴。メンバーは自分、管理者はメンバーを選んで閲覧。
+// 月ごとの稼働履歴。メンバーは自分、管理者はメンバーを選んで閲覧。
 export default function WorkHistory({ me }: { me: User }) {
   const isOwner = me.role === "owner";
   const events = useMemo(() => getEvents(), []);
   const approvals = useMemo(() => getEventApprovals(), []);
   const videoTasks = useMemo(() => getVideoTasks(), []);
-  const deliverables = useMemo(() => getConfirmedDeliverables(), []);
   const members = useMemo(() => getMembers(), []);
 
   const [targetId, setTargetId] = useState(isOwner ? members[0]?.id ?? "" : me.id);
@@ -30,22 +28,22 @@ export default function WorkHistory({ me }: { me: User }) {
   const currentQuarter = quarterOf(todayStr());
   const quarters = useMemo(() => {
     const set = new Set<string>(
-      target ? workHistoryQuarters(events, videoTasks, target.id, deliverables) : []
+      target ? workHistoryQuarters(events, videoTasks, target.id) : []
     );
-    set.add(currentQuarter); // 現在の四半期は常に選べるようにする
+    set.add(currentQuarter); // 現在の月は常に選べるようにする
     return Array.from(set).sort().reverse();
-  }, [events, videoTasks, deliverables, target, currentQuarter]);
+  }, [events, videoTasks, target, currentQuarter]);
 
-  // デフォルトは「現在の四半期」
+  // デフォルトは「現在の月」
   const [quarter, setQuarter] = useState(currentQuarter);
   if (!quarters.includes(quarter)) setQuarter(currentQuarter);
 
   const { rows, summary } = useMemo(
     () =>
       target
-        ? buildWorkHistory(events, approvals, videoTasks, target.id, quarter, deliverables)
+        ? buildWorkHistory(events, approvals, videoTasks, target.id, quarter)
         : { rows: [], summary: { count: 0, totalHours: 0, confirmedAmount: 0, pendingAmount: 0 } },
-    [events, approvals, videoTasks, deliverables, target, quarter]
+    [events, approvals, videoTasks, target, quarter]
   );
 
   function exportPdf() {
@@ -63,7 +61,7 @@ export default function WorkHistory({ me }: { me: User }) {
       <div className="section-head">
         <h2>稼働履歴</h2>
         <p className="muted">
-          四半期ごとの活動内容・稼働時間・報酬をまとめて確認できます。
+          月ごとの活動内容・稼働時間・報酬をまとめて確認できます。
         </p>
       </div>
 

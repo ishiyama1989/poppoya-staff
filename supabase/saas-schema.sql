@@ -137,20 +137,6 @@ create table event_approvals (
   status text default 'requested', requested_at text, approved_at text
 );
 
-create table projects (
-  id text primary key,
-  org_id uuid not null references organizations(id) on delete cascade,
-  name text not null, status text default 'active', description text default '',
-  assignee_ids jsonb not null default '[]', start_date text, created_at text
-);
-
-create table project_materials (
-  id text primary key,
-  org_id uuid not null references organizations(id) on delete cascade,
-  project_id text not null, title text not null, kind text default 'link',
-  url text not null, file_path text, note text, created_by text, created_at text
-);
-
 create table push_subscriptions (
   endpoint text primary key,
   org_id uuid not null references organizations(id) on delete cascade,
@@ -218,7 +204,7 @@ begin
   foreach t in array array[
     'schedule_events','availability','app_requests','pay_confirmations',
     'recipients','comment_templates','video_tasks','event_approvals',
-    'projects','project_materials','push_subscriptions',
+    'push_subscriptions',
     'time_clocks','shift_checklist_items','handover_notes','attendance_alerts'
   ] loop
     execute format('alter table %I enable row level security;', t);
@@ -232,11 +218,5 @@ end $$;
 -- reservations は読み取り専用（select のみ）。書き込みは sync-neppan Edge Function（service role, RLSバイパス）だけが行う。
 alter table reservations enable row level security;
 create policy res_sel on reservations for select using (org_id = auth_org_id());
-
--- ファイル保存用ストレージ（資料）。組織フォルダで分ける運用。
-insert into storage.buckets (id, name, public) values ('materials','materials', true)
-on conflict (id) do nothing;
-create policy materials_read on storage.objects for select using (bucket_id = 'materials');
-create policy materials_insert on storage.objects for insert with check (bucket_id = 'materials' and auth.role() = 'authenticated');
 
 NOTIFY pgrst, 'reload schema';

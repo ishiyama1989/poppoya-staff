@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import {
   Calendar as CalendarIcon, Clock, Inbox, Banknote, Settings,
-  Users, BarChart2, LogOut, ClipboardList, FolderKanban, History, Timer, type LucideIcon,
+  Users, BarChart2, LogOut, ClipboardList, History, Timer, type LucideIcon,
 } from "lucide-react";
 import type { User } from "./types";
 import {
@@ -20,7 +20,6 @@ import OwnerTasks from "./components/OwnerTasks";
 import Payments from "./components/Payments";
 import Requests from "./components/Requests";
 import MyPay from "./components/MyPay";
-import Projects from "./components/Projects";
 import WorkHistory from "./components/WorkHistory";
 import ProfileSettings from "./components/ProfileSettings";
 import TimeClock from "./components/TimeClock";
@@ -35,7 +34,6 @@ type Tab =
   | "members"
   | "payments"
   | "tasks"
-  | "projects"
   | "history"
   | "timeclock";
 
@@ -70,7 +68,6 @@ export default function App({
       label: `出退勤${attendanceAlertCount > 0 ? `（${attendanceAlertCount}）` : ""}`,
       icon: Timer,
     },
-    { key: "projects", label: "案件一覧", icon: FolderKanban },
     { key: "availability", label: "稼働日設定", icon: Clock, memberOnly: true },
     {
       key: "requests",
@@ -148,7 +145,6 @@ export default function App({
         {tab === "availability" && !isOwner && <AvailabilityView me={user} />}
         {tab === "requests" && !isOwner && <Requests me={user} />}
         {tab === "mypay" && !isOwner && <MyPay me={user} />}
-        {tab === "projects" && <Projects me={user} />}
         {tab === "history" && <WorkHistory me={user} />}
         {tab === "settings" && (
           <ProfileSettings

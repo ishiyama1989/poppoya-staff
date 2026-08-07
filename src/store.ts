@@ -15,7 +15,7 @@ import type {
   User,
   VideoTask,
 } from "./types";
-import type { EventApproval, Project, ProjectMaterial } from "./types";
+import type { EventApproval } from "./types";
 import { pinToAuthPassword } from "./lib/auth";
 import {
   supabase,
@@ -29,8 +29,6 @@ import {
   syncTemplates,
   syncVideoTasks,
   syncEventApprovals,
-  syncProjects,
-  syncProjectMaterials,
   syncTimeClocks,
   syncChecklistItems,
   syncHandoverNotes,
@@ -49,8 +47,6 @@ const KEYS = {
   recipients: "sns_recipients",
   videoTasks: "sns_video_tasks",
   eventApprovals: "sns_event_approvals",
-  projects: "sns_projects",
-  materials: "sns_project_materials",
   reservations: "sns_reservations",
   timeClocks: "sns_time_clocks",
   checklistItems: "sns_checklist_items",
@@ -736,81 +732,6 @@ export function approvedEventApprovalsForUser(userId: string): EventApproval[] {
   );
 }
 
-// ---- 案件 ----
-export function getProjects(): Project[] {
-  return read<Project[]>(KEYS.projects, []);
-}
-
-function saveProjects(list: Project[]): void {
-  write(KEYS.projects, list);
-  syncProjects(list);
-}
-
-export function addProject(
-  data: Omit<Project, "id" | "createdAt">
-): Project {
-  const project: Project = { ...data, id: uid(), createdAt: today() };
-  saveProjects([...getProjects(), project]);
-  return project;
-}
-
-export function updateProject(
-  id: string,
-  patch: Partial<Omit<Project, "id" | "createdAt">>
-): void {
-  saveProjects(getProjects().map((p) => (p.id === id ? { ...p, ...patch } : p)));
-}
-
-export function deleteProject(id: string): void {
-  // 案件と紐づく資料をローカル＆リモートから削除
-  write(KEYS.projects, getProjects().filter((p) => p.id !== id));
-  deleteRemote("projects", { id });
-  const remainingMaterials = getMaterials().filter((m) => m.projectId !== id);
-  write(KEYS.materials, remainingMaterials);
-  deleteRemote("project_materials", { project_id: id });
-}
-
-// ---- 案件の資料 ----
-export function getMaterials(): ProjectMaterial[] {
-  return read<ProjectMaterial[]>(KEYS.materials, []);
-}
-
-export function getMaterialsFor(projectId: string): ProjectMaterial[] {
-  return getMaterials()
-    .filter((m) => m.projectId === projectId)
-    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1));
-}
-
-function saveMaterials(list: ProjectMaterial[]): void {
-  write(KEYS.materials, list);
-  syncProjectMaterials(list);
-}
-
-export function addMaterial(
-  data: Omit<ProjectMaterial, "id" | "createdAt">
-): void {
-  const mat: ProjectMaterial = { ...data, id: uid(), createdAt: today() };
-  saveMaterials([...getMaterials(), mat]);
-}
-
-export function updateMaterial(
-  id: string,
-  patch: Partial<ProjectMaterial>
-): void {
-  saveMaterials(getMaterials().map((m) => (m.id === id ? { ...m, ...patch } : m)));
-}
-
-export function deleteMaterial(id: string): void {
-  write(KEYS.materials, getMaterials().filter((m) => m.id !== id));
-  deleteRemote("project_materials", { id });
-}
-
-// 管理者が報酬を確定した納品物（報酬集計用）
-export function getConfirmedDeliverables(): ProjectMaterial[] {
-  return getMaterials().filter(
-    (m) => m.category === "deliverable" && m.delStatus === "confirmed"
-  );
-}
 
 // ---- 宿泊予約（ねっぱん！から同期。読み取り専用） ----
 export function getReservations(): Reservation[] {

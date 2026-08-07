@@ -8,8 +8,6 @@ import type {
   EventApproval,
   HandoverNote,
   PayConfirmation,
-  Project,
-  ProjectMaterial,
   Recipient,
   Reservation,
   ScheduleEvent,
@@ -255,64 +253,6 @@ const fromDbEventApproval = (r: any): EventApproval => ({
   approvedAt: r.approved_at ?? undefined,
 })
 
-const toDbProject = (p: Project) => ({
-  id: p.id,
-  name: p.name,
-  status: p.status,
-  description: p.description,
-  assignee_ids: p.assigneeIds,
-  start_date: p.startDate,
-  created_at: p.createdAt,
-})
-
-const fromDbProject = (r: any): Project => ({
-  id: r.id,
-  name: r.name,
-  status: r.status,
-  description: r.description ?? '',
-  assigneeIds: r.assignee_ids ?? [],
-  startDate: r.start_date ?? '',
-  createdAt: r.created_at ?? '',
-})
-
-const toDbMaterial = (m: ProjectMaterial) => ({
-  id: m.id,
-  project_id: m.projectId,
-  title: m.title,
-  kind: m.kind,
-  url: m.url,
-  file_path: m.filePath ?? null,
-  note: m.note ?? null,
-  created_by: m.createdBy,
-  created_at: m.createdAt,
-  category: m.category ?? 'material',
-  media_type: m.mediaType ?? null,
-  assignee_id: m.assigneeId ?? null,
-  delivered_at: m.deliveredAt ?? null,
-  del_status: m.delStatus ?? null,
-  reward_amount: m.rewardAmount ?? null,
-  confirmed_at: m.confirmedAt ?? null,
-})
-
-const fromDbMaterial = (r: any): ProjectMaterial => ({
-  id: r.id,
-  projectId: r.project_id,
-  title: r.title,
-  kind: r.kind,
-  url: r.url,
-  filePath: r.file_path ?? undefined,
-  note: r.note ?? undefined,
-  createdBy: r.created_by ?? '',
-  createdAt: r.created_at ?? '',
-  category: r.category ?? 'material',
-  mediaType: r.media_type ?? undefined,
-  assigneeId: r.assignee_id ?? undefined,
-  deliveredAt: r.delivered_at ?? undefined,
-  delStatus: r.del_status ?? undefined,
-  rewardAmount: r.reward_amount ?? undefined,
-  confirmedAt: r.confirmed_at ?? undefined,
-})
-
 const toDbTimeClock = (t: TimeClock) => ({
   id: t.id,
   user_id: t.userId,
@@ -492,14 +432,6 @@ export function syncEventApprovals(list: EventApproval[]): void {
   upsertRows('event_approvals', list, toDbEventApproval, 'id').catch(() => {})
 }
 
-export function syncProjects(list: Project[]): void {
-  upsertRows('projects', list, toDbProject, 'id').catch(() => {})
-}
-
-export function syncProjectMaterials(list: ProjectMaterial[]): void {
-  upsertRows('project_materials', list, toDbMaterial, 'id').catch(() => {})
-}
-
 export function syncTimeClocks(list: TimeClock[]): void {
   upsertRows('time_clocks', list, toDbTimeClock, 'id').catch(() => {})
 }
@@ -516,26 +448,11 @@ export function syncAttendanceAlerts(list: AttendanceAlert[]): void {
   upsertRows('attendance_alerts', list, toDbAttendanceAlert, 'id').catch(() => {})
 }
 
-// 資料ファイルを Storage にアップロードし、公開URLとパスを返す
-export async function uploadMaterialFile(
-  projectId: string,
-  file: File
-): Promise<{ url: string; path: string } | null> {
-  const safeName = file.name.replace(/[^\w.\-]/g, "_");
-  const path = `${projectId}/${Date.now()}-${safeName}`;
-  const { error } = await supabase.storage
-    .from("materials")
-    .upload(path, file, { upsert: false });
-  if (error) return null;
-  const { data } = supabase.storage.from("materials").getPublicUrl(path);
-  return { url: data.publicUrl, path };
-}
-
 // ---- SaaS版：ログイン中の組織のデータを読み込む（RLSで自組織のみ） ----
 export async function loadOrgData(): Promise<void> {
   const [
     profiles, events, avail, requests, pay, recipients,
-    templates, videoTasks, approvals, projects, materials, reservations,
+    templates, videoTasks, approvals, reservations,
     timeClocks, checklistItems, handoverNotes, attendanceAlerts,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
@@ -547,8 +464,6 @@ export async function loadOrgData(): Promise<void> {
     supabase.from('comment_templates').select('*'),
     supabase.from('video_tasks').select('*'),
     supabase.from('event_approvals').select('*'),
-    supabase.from('projects').select('*'),
-    supabase.from('project_materials').select('*'),
     supabase.from('reservations').select('*'),
     supabase.from('time_clocks').select('*'),
     supabase.from('shift_checklist_items').select('*'),
@@ -567,8 +482,6 @@ export async function loadOrgData(): Promise<void> {
   put('sns_comment_templates', templates.data, fromDbTemplate)
   put('sns_video_tasks', videoTasks.data, fromDbVideoTask)
   put('sns_event_approvals', approvals.data, fromDbEventApproval)
-  put('sns_projects', projects.data, fromDbProject)
-  put('sns_project_materials', materials.data, fromDbMaterial)
   put('sns_reservations', reservations.data, fromDbReservation)
   put('sns_time_clocks', timeClocks.data, fromDbTimeClock)
   put('sns_checklist_items', checklistItems.data, fromDbChecklistItem)
@@ -622,27 +535,6 @@ export async function hydrateFromSupabase(): Promise<{ ok: boolean; userCount: n
     } catch {
       /* テーブル未作成などは無視 */
     }
-    try {
-      const [projects, materials] = await Promise.all([
-        supabase.from('projects').select('*'),
-        supabase.from('project_materials').select('*'),
-      ])
-      if (!projects.error && projects.data) {
-        localStorage.setItem(
-          'sns_projects',
-          JSON.stringify(projects.data.map(fromDbProject))
-        )
-      }
-      if (!materials.error && materials.data) {
-        localStorage.setItem(
-          'sns_project_materials',
-          JSON.stringify(materials.data.map(fromDbMaterial))
-        )
-      }
-    } catch {
-      /* テーブル未作成などは無視 */
-    }
-
     return { ok: true, userCount: users.data?.length ?? 0 }
   } catch {
     return { ok: false, userCount: 0 }

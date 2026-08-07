@@ -1,29 +1,8 @@
 // 報酬計算の共通ロジック
 // 稼働(work)・撮影(shooting)を労働時間としてカウントし、納品(delivery)は除外。
 
-import type { EventApproval, ProjectMaterial, ScheduleEvent, VideoTask } from "../types";
+import type { EventApproval, ScheduleEvent, VideoTask } from "../types";
 import { hoursBetween, quarterOf } from "./date";
-
-// 確定した納品物を四半期で割り当てる（納品日→なければ確定日→登録日）
-export function deliverablesForQuarter(
-  deliverables: ProjectMaterial[],
-  userId: string,
-  quarter: string
-): ProjectMaterial[] {
-  return deliverables
-    .filter(
-      (d) =>
-        d.assigneeId === userId &&
-        d.delStatus === "confirmed" &&
-        quarterOf(d.deliveredAt ?? d.confirmedAt ?? d.createdAt) === quarter
-    )
-    .sort((a, b) =>
-      (a.deliveredAt ?? a.confirmedAt ?? a.createdAt) <
-      (b.deliveredAt ?? b.confirmedAt ?? b.createdAt)
-        ? -1
-        : 1
-    );
-}
 
 export interface PayLine {
   event: ScheduleEvent;
@@ -115,12 +94,11 @@ const HIST_TYPE_LABEL: Record<string, string> = {
   work: "稼働",
 };
 
-// そのユーザーに活動（担当予定 or 完了動画 or 確定納品物）のある四半期一覧（新しい順）
+// そのユーザーに活動（担当予定 or 完了動画）のある四半期一覧（新しい順）
 export function workHistoryQuarters(
   events: ScheduleEvent[],
   videoTasks: VideoTask[],
-  userId: string,
-  deliverables: ProjectMaterial[] = []
+  userId: string
 ): string[] {
   const set = new Set<string>();
   for (const e of events)
@@ -128,9 +106,6 @@ export function workHistoryQuarters(
   for (const t of videoTasks)
     if (t.toUserId === userId && t.status === "completed")
       set.add(quarterOf(t.completedAt ?? t.deadline));
-  for (const d of deliverables)
-    if (d.assigneeId === userId && d.delStatus === "confirmed")
-      set.add(quarterOf(d.deliveredAt ?? d.confirmedAt ?? d.createdAt));
   return Array.from(set).sort().reverse();
 }
 
@@ -140,22 +115,9 @@ export function buildWorkHistory(
   approvals: EventApproval[],
   videoTasks: VideoTask[],
   userId: string,
-  quarter: string,
-  deliverables: ProjectMaterial[] = []
+  quarter: string
 ): { rows: HistoryRow[]; summary: HistorySummary } {
   const rows: HistoryRow[] = [];
-
-  for (const d of deliverablesForQuarter(deliverables, userId, quarter)) {
-    rows.push({
-      id: d.id,
-      date: d.deliveredAt ?? d.confirmedAt ?? d.createdAt,
-      title: d.title,
-      typeLabel: "納品物",
-      hours: 0,
-      amount: d.rewardAmount ?? 0,
-      status: "confirmed",
-    });
-  }
 
   for (const e of events) {
     if (!e.assigneeIds.includes(userId)) continue;
