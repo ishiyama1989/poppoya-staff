@@ -518,7 +518,10 @@ function DayPanel({
   onChange: () => void;
 }) {
   const [editing, setEditing] = useState<ScheduleEvent | null>(null);
-  const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
+  // 日付を開いた時点で予約の入力欄を出しておく（ボタンを押す手間をなくす）
+  const [editingReservation, setEditingReservation] = useState<Reservation>(() =>
+    newManualReservation(date)
+  );
   const [requestTo, setRequestTo] = useState<User | null>(null);
   const [requestingEvent, setRequestingEvent] = useState<ScheduleEvent | null>(null);
   const availList = availabilityOn(date).filter((a) =>
@@ -747,25 +750,20 @@ function DayPanel({
               onChange();
             }}
           />
-        ) : editingReservation ? (
-          <ReservationForm
-            value={editingReservation}
-            onCancel={() => setEditingReservation(null)}
-            onSave={(r) => {
-              upsertReservation(r);
-              setEditingReservation(null);
-              onChange();
-            }}
-          />
         ) : (
           me.role === "owner" &&
           !requestingEvent && (
-            <button
-              className="primary full"
-              onClick={() => setEditingReservation(newManualReservation(date))}
-            >
-              ＋ 予約を追加
-            </button>
+            <ReservationForm
+              // 保存・キャンセル後は空のフォームに戻し、続けて次の予約を入力できるようにする
+              key={editingReservation.id}
+              value={editingReservation}
+              onCancel={() => setEditingReservation(newManualReservation(date))}
+              onSave={(r) => {
+                upsertReservation(r);
+                setEditingReservation(newManualReservation(date));
+                onChange();
+              }}
+            />
           )
         )}
       </div>

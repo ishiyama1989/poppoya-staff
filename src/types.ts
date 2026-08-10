@@ -224,10 +224,10 @@ export const ROOM_TYPES = ["トレインルーム", "レトロルーム"] as con
 // 人数プルダウンの選択肢（0〜5人）
 export const GUEST_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5];
 
-// チェックイン時刻の選択肢（15:00を既定に、30分刻み）
+// チェックイン時刻の選択肢。宿の受け入れ開始が15:00のため、それ以前は選べない。
 export const CHECKIN_TIME_OPTIONS: string[] = (() => {
   const list: string[] = [];
-  for (let h = 6; h <= 23; h++) {
+  for (let h = 15; h <= 23; h++) {
     list.push(`${String(h).padStart(2, "0")}:00`);
     list.push(`${String(h).padStart(2, "0")}:30`);
   }

@@ -31,7 +31,6 @@ export default function CreateOrg({ onCreated }: { onCreated: () => void }) {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="例: 石田 桃花"
             onKeyDown={(e) => e.key === "Enter" && submit()}
           />
         </label>

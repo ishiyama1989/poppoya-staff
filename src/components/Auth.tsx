@@ -66,7 +66,6 @@ export default function Auth({ onLoggedIn }: { onLoggedIn: () => void }) {
           <input
             value={loginId}
             onChange={(e) => setLoginId(e.target.value)}
-            placeholder="例: yamada"
             autoComplete="username"
           />
         </label>
@@ -84,7 +83,6 @@ export default function Auth({ onLoggedIn }: { onLoggedIn: () => void }) {
                   : e.target.value
               )
             }
-            placeholder={mode === "signup" ? "0000" : "••••••••"}
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
             onKeyDown={(e) => e.key === "Enter" && submit()}
           />
