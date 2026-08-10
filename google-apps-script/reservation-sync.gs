@@ -45,10 +45,14 @@ function syncReservations() {
     var threadOk = true;
 
     for (var j = 0; j < messages.length; j++) {
-      var text = buildMailText_(messages[j]);
+      var message = messages[j];
+      var text = buildMailText_(message);
       if (!text) continue;
 
-      if (postToEndpoint_(endpointUrl, inboundToken, text)) {
+      // 送信元と件名も送る（どの予約サイトからの通知か判定するため）
+      var meta = { from: message.getFrom(), subject: message.getSubject() };
+
+      if (postToEndpoint_(endpointUrl, inboundToken, text, meta)) {
         sent++;
       } else {
         failed++;
@@ -117,7 +121,7 @@ function imageToText_(blob) {
 }
 
 /** Supabaseの関数へ送信。成功したらtrue */
-function postToEndpoint_(endpointUrl, inboundToken, text) {
+function postToEndpoint_(endpointUrl, inboundToken, text, meta) {
   var url = endpointUrl;
   if (inboundToken) {
     url += (url.indexOf('?') === -1 ? '?' : '&') + 'token=' + encodeURIComponent(inboundToken);
@@ -126,7 +130,11 @@ function postToEndpoint_(endpointUrl, inboundToken, text) {
   var response = UrlFetchApp.fetch(url, {
     method: 'post',
     contentType: 'application/json',
-    payload: JSON.stringify({ text: text }),
+    payload: JSON.stringify({
+      text: text,
+      from: meta.from,
+      subject: meta.subject
+    }),
     muteHttpExceptions: true
   });
 

@@ -167,7 +167,8 @@ create table attendance_alerts (
 create table reservations (
   id text primary key,
   org_id uuid not null references organizations(id) on delete cascade,
-  neppan_booking_id text not null,
+  neppan_booking_id text not null, -- 「予約サイト:予約番号」の形。サイト間で番号がかぶっても衝突しない
+  source text default 'other',     -- neppan / rakuten / jalan / booking / airbnb / ikyu / other
   checkin_date text not null, checkout_date text not null,
   room_type text default '', guest_name text default '',
   status text not null default 'confirmed', synced_at timestamptz default now(),

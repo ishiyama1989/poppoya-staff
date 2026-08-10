@@ -287,6 +287,7 @@ const fromDbAttendanceAlert = (r: any): AttendanceAlert => ({
 const fromDbReservation = (r: any): Reservation => ({
   id: r.id,
   neppanBookingId: r.neppan_booking_id,
+  source: r.source ?? 'other',
   checkinDate: r.checkin_date,
   checkoutDate: r.checkout_date,
   roomType: r.room_type ?? '',

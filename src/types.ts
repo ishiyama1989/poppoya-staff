@@ -198,12 +198,24 @@ export type ReservationStatus = "confirmed" | "cancelled";
 export interface Reservation {
   id: string;
   neppanBookingId: string;
+  source: string; // 予約サイト（neppan / rakuten / jalan / booking / airbnb / ikyu / other）
   checkinDate: string; // "YYYY-MM-DD"
   checkoutDate: string; // "YYYY-MM-DD"
   roomType: string;
   guestName: string;
   status: ReservationStatus;
 }
+
+// 予約サイトの表示名
+export const RESERVATION_SOURCE_LABEL: Record<string, string> = {
+  neppan: "ねっぱん",
+  rakuten: "楽天トラベル",
+  jalan: "じゃらん",
+  booking: "Booking.com",
+  airbnb: "Airbnb",
+  ikyu: "一休",
+  other: "その他",
+};
 
 // 出退勤打刻（1ユーザー・1日1レコード）
 export interface TimeClock {

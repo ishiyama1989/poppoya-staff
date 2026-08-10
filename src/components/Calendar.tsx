@@ -5,6 +5,7 @@ import {
   EVENT_TYPE_LABEL,
   EVENT_TYPES,
   REQUEST_STATUS_LABEL,
+  RESERVATION_SOURCE_LABEL,
   SLOT_LABEL,
   type ChecklistItem,
   type EventType,
@@ -549,6 +550,9 @@ function DayPanel({
               {dayReservations.map((r) => (
                 <div key={r.id} className="avail-member">
                   <span className="avail-chip">{r.guestName || "ゲスト"}</span>
+                  <span className="tag">
+                    {RESERVATION_SOURCE_LABEL[r.source] ?? r.source}
+                  </span>
                   <span className="avail-slots">
                     {r.checkinDate.slice(5).replace("-", "/")}〜
                     {r.checkoutDate.slice(5).replace("-", "/")}
