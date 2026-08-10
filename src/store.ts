@@ -723,6 +723,34 @@ export function reservationsOn(date: string): Reservation[] {
   );
 }
 
+// 同じ部屋の宿泊期間が重なっている予約を探す（1室1日1組までのため）。
+// 自分自身は対象外。重なりがなければ null。
+export function findRoomConflict(target: Reservation): Reservation | null {
+  return (
+    getReservations().find(
+      (r) =>
+        r.id !== target.id &&
+        r.status === "confirmed" &&
+        r.roomType === target.roomType &&
+        // 期間が少しでも重なっていれば衝突（チェックアウト日は次の組が入れる）
+        target.checkinDate < r.checkoutDate &&
+        r.checkinDate < target.checkoutDate
+    ) ?? null
+  );
+}
+
+// その日にすでにシフトが入っているスタッフの名前（基本は1日1人のため確認に使う）
+export function staffNamesOn(date: string): string[] {
+  const nameById: Record<string, string> = {};
+  for (const u of getUsers()) nameById[u.id] = u.name;
+  const names = new Set<string>();
+  for (const e of getEvents()) {
+    if (e.date !== date) continue;
+    for (const id of e.assigneeIds) if (nameById[id]) names.add(nameById[id]);
+  }
+  return [...names];
+}
+
 function saveReservations(list: Reservation[]): void {
   write(KEYS.reservations, list);
   syncReservations(list);

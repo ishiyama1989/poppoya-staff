@@ -376,7 +376,10 @@ async function upsertRows<T>(
 ): Promise<void> {
   if (items.length === 0) return
   const rows = items.map((i) => ({ ...toDb(i), org_id: CURRENT_ORG_ID }))
-  await supabase.from(table).upsert(rows, { onConflict })
+  const { error } = await supabase.from(table).upsert(rows, { onConflict })
+  // 保存に失敗しても画面は動き続けてしまうので、原因が分かるよう必ず記録する
+  // （列の追加漏れなどで保存できていないことに気づけなかった事例があるため）
+  if (error) console.error(`[sync] ${table} の保存に失敗しました:`, error.message)
 }
 
 // 特定の行だけを削除（削除操作はこちらで明示的に行う）
@@ -459,22 +462,32 @@ export async function loadOrgData(): Promise<void> {
     supabase.from('handover_notes').select('*'),
     supabase.from('attendance_alerts').select('*'),
   ])
-  const put = (key: string, rows: any[] | null | undefined, map: (r: any) => unknown) => {
-    if (rows) localStorage.setItem(key, JSON.stringify(rows.map(map)))
+  // 読み込みに失敗したテーブルは上書きせず前回の内容を残し、原因を記録する。
+  // （黙って空にすると、画面上はデータが消えたようにしか見えないため）
+  const put = (
+    key: string,
+    res: { data: any[] | null; error: { message: string } | null },
+    map: (r: any) => unknown
+  ) => {
+    if (res.error) {
+      console.error(`[sync] ${key} の読み込みに失敗しました:`, res.error.message)
+      return
+    }
+    if (res.data) localStorage.setItem(key, JSON.stringify(res.data.map(map)))
   }
-  put('sns_users', profiles.data, fromDbProfile)
-  put('sns_events', events.data, fromDbEvent)
-  put('sns_availability', avail.data, fromDbAvail)
-  put('sns_requests', requests.data, fromDbRequest)
-  put('sns_pay_confirmations', pay.data, fromDbPayConf)
-  put('sns_recipients', recipients.data, fromDbRecipient)
-  put('sns_comment_templates', templates.data, fromDbTemplate)
-  put('sns_event_approvals', approvals.data, fromDbEventApproval)
-  put('sns_reservations', reservations.data, fromDbReservation)
-  put('sns_time_clocks', timeClocks.data, fromDbTimeClock)
-  put('sns_checklist_items', checklistItems.data, fromDbChecklistItem)
-  put('sns_handover_notes', handoverNotes.data, fromDbHandoverNote)
-  put('sns_attendance_alerts', attendanceAlerts.data, fromDbAttendanceAlert)
+  put('sns_users', profiles, fromDbProfile)
+  put('sns_events', events, fromDbEvent)
+  put('sns_availability', avail, fromDbAvail)
+  put('sns_requests', requests, fromDbRequest)
+  put('sns_pay_confirmations', pay, fromDbPayConf)
+  put('sns_recipients', recipients, fromDbRecipient)
+  put('sns_comment_templates', templates, fromDbTemplate)
+  put('sns_event_approvals', approvals, fromDbEventApproval)
+  put('sns_reservations', reservations, fromDbReservation)
+  put('sns_time_clocks', timeClocks, fromDbTimeClock)
+  put('sns_checklist_items', checklistItems, fromDbChecklistItem)
+  put('sns_handover_notes', handoverNotes, fromDbHandoverNote)
+  put('sns_attendance_alerts', attendanceAlerts, fromDbAttendanceAlert)
 }
 
 // ---- Hydration: Supabase → localStorage on app start（旧・単一テナント用。SaaS版では未使用） ----

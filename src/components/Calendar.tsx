@@ -40,6 +40,7 @@ import {
   pendingRequestsForUser,
   rejectRequest,
   reservationsOn,
+  findRoomConflict,
   upsertReservation,
   deleteReservation,
   newManualReservation,
@@ -800,6 +801,17 @@ function ReservationForm({
     if (!draft.guestName.trim()) return alert("氏名を入力してください");
     if (draft.checkoutDate <= draft.checkinDate)
       return alert("チェックアウト日はチェックイン日より後にしてください");
+
+    // 1室につき1日1組までなので、期間が重なる予約があれば登録させない
+    const conflict = findRoomConflict(draft);
+    if (conflict) {
+      return alert(
+        `${draft.roomType}はすでに埋まっています。\n` +
+          `${conflict.checkinDate.replace(/-/g, "/")}〜${conflict.checkoutDate.replace(/-/g, "/")}` +
+          `「${conflict.guestName || "ゲスト"}」様のご予約と重なっています。`
+      );
+    }
+
     onSave({ ...draft, guestName: draft.guestName.trim() });
   }
 

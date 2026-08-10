@@ -29,8 +29,8 @@ export interface User {
 }
 
 // 予定（いつ・どこで・誰が・何を）
-// 客室ごとに色分けするため、種別は客室名で持つ
-export type EventType = "train" | "retro";
+// 業務場所ごとに色分けするため、種別は場所名で持つ
+export type EventType = "train" | "retro" | "locomo";
 
 export interface ScheduleEvent {
   id: string;
@@ -174,6 +174,7 @@ export interface CommentTemplate {
 export const EVENT_TYPE_LABEL: Record<string, string> = {
   train: "トレインルーム",
   retro: "レトロルーム",
+  locomo: "LOCOMO CAFE",
   // 以下は旧データ互換（過去に登録済みの予定が壊れないように残す）
   shift: "出勤",
   shooting: "撮影",
@@ -186,6 +187,7 @@ export const EVENT_TYPE_LABEL: Record<string, string> = {
 export const EVENT_TYPE_COLOR: Record<string, string> = {
   train: "#3b82f6", // 青
   retro: "#f59e0b", // オレンジ
+  locomo: "#12b886", // 緑
   // 以下は旧データ互換
   shift: "#12b886",
   shooting: "#f59e0b",
@@ -196,7 +198,7 @@ export const EVENT_TYPE_COLOR: Record<string, string> = {
 };
 
 // 凡例・選択肢に表示する順序
-export const EVENT_TYPES: EventType[] = ["train", "retro"];
+export const EVENT_TYPES: EventType[] = ["train", "retro", "locomo"];
 
 // 宿泊予約（ねっぱん！のiCalフィードから同期。アプリ側では編集不可・読み取り専用）
 export type ReservationStatus = "confirmed" | "cancelled";
@@ -219,6 +221,8 @@ export interface Reservation {
 }
 
 // 客室（宿ぽっぽやは2部屋）
+// 宿泊できるのはこの2室のみ。1室につき1日1組までしか受けられない。
+// （LOCOMO CAFE は宿泊ではなく業務場所なので、ここには含めない）
 export const ROOM_TYPES = ["トレインルーム", "レトロルーム"] as const;
 
 // 人数プルダウンの選択肢（0〜5人）

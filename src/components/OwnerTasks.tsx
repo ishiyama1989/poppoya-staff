@@ -1,12 +1,13 @@
 import { useMemo, useState } from "react";
 import type { EventType, RequestStatus, User } from "../types";
-import { EVENT_TYPE_LABEL, REQUEST_STATUS_LABEL } from "../types";
+import { EVENT_TYPE_LABEL, EVENT_TYPES, REQUEST_STATUS_LABEL } from "../types";
 import {
   addRequest,
   approveRequest,
   getMembers,
   getUsers,
   pendingRequestsForUser,
+  staffNamesOn,
   requestsFromUser,
   rejectRequest,
 } from "../store";
@@ -230,6 +231,15 @@ function ShiftRequestForm({
       setError("担当者を選択してください");
       return;
     }
+    // 基本は1日1人なので、すでに誰か入っている日は念のため確認する（絶対禁止ではない）
+    const already = staffNamesOn(date);
+    if (already.length > 0) {
+      const ok = confirm(
+        `${date.replace(/-/g, "/")}はすでに${already.join("・")}さんが入っています。\n` +
+          `通常は1日1人ですが、それでも依頼を送りますか？`
+      );
+      if (!ok) return;
+    }
     addRequest({
       date,
       fromUserId,
@@ -275,13 +285,14 @@ function ShiftRequestForm({
           />
         </label>
         <label>
-          客室
+          業務場所
           <select
             value={roomType}
             onChange={(e) => setRoomType(e.target.value as EventType)}
           >
-            <option value="train">トレインルーム</option>
-            <option value="retro">レトロルーム</option>
+            {EVENT_TYPES.map((t) => (
+              <option key={t} value={t}>{EVENT_TYPE_LABEL[t]}</option>
+            ))}
           </select>
         </label>
         <div className="task-form-row">
