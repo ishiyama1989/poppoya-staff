@@ -163,14 +163,19 @@ create table attendance_alerts (
   note text default '', created_at text
 );
 
--- 宿泊予約（ねっぱん！のiCalフィードから sync-neppan Edge Function が同期。アプリからは読み取り専用）
+-- 宿泊予約。予約サイトからの通知メール経由（Edge Function）と、
+-- 管理者がカレンダーから手入力したもの（source='manual'）の両方が入る。
 create table reservations (
   id text primary key,
   org_id uuid not null references organizations(id) on delete cascade,
   neppan_booking_id text not null, -- 「予約サイト:予約番号」の形。サイト間で番号がかぶっても衝突しない
-  source text default 'other',     -- neppan / rakuten / jalan / booking / airbnb / ikyu / other
+  source text default 'other',     -- manual / neppan / rakuten / jalan / booking / airbnb / ikyu / other
   checkin_date text not null, checkout_date text not null,
+  checkin_time text default '15:00',
   room_type text default '', guest_name text default '',
+  address text default '',
+  adults integer default 0, children integer default 0, infants integer default 0,
+  note text default '',
   status text not null default 'confirmed', synced_at timestamptz default now(),
   unique (org_id, neppan_booking_id)
 );
@@ -213,8 +218,12 @@ begin
   end loop;
 end $$;
 
--- reservations は読み取り専用（select のみ）。書き込みは sync-neppan Edge Function（service role, RLSバイパス）だけが行う。
+-- reservations は自組織のみ読み書き可（管理者がカレンダーから予約を手入力するため）。
+-- メール連携での書き込みは Edge Function が service role で行う（RLSバイパス）。
 alter table reservations enable row level security;
 create policy res_sel on reservations for select using (org_id = auth_org_id());
+create policy res_ins on reservations for insert with check (org_id = auth_org_id());
+create policy res_upd on reservations for update using (org_id = auth_org_id()) with check (org_id = auth_org_id());
+create policy res_del on reservations for delete using (org_id = auth_org_id());
 
 NOTIFY pgrst, 'reload schema';

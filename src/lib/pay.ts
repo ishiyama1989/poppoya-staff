@@ -136,7 +136,7 @@ export function buildWorkHistory(
         });
       }
     } else {
-      const status: HistoryStatus = e.hasReward === false ? "noreward" : "undetermined";
+      const status: HistoryStatus = "undetermined";
       rows.push({
         id: e.id,
         date: e.date,

@@ -6,6 +6,9 @@ import {
   EVENT_TYPES,
   REQUEST_STATUS_LABEL,
   RESERVATION_SOURCE_LABEL,
+  ROOM_TYPES,
+  GUEST_COUNT_OPTIONS,
+  CHECKIN_TIME_OPTIONS,
   SLOT_LABEL,
   type ChecklistItem,
   type EventType,
@@ -37,6 +40,9 @@ import {
   pendingRequestsForUser,
   rejectRequest,
   reservationsOn,
+  upsertReservation,
+  deleteReservation,
+  newManualReservation,
   requestsOn,
   toggleChecklistItem,
   upsertEvent,
@@ -512,6 +518,7 @@ function DayPanel({
   onChange: () => void;
 }) {
   const [editing, setEditing] = useState<ScheduleEvent | null>(null);
+  const [editingReservation, setEditingReservation] = useState<Reservation | null>(null);
   const [requestTo, setRequestTo] = useState<User | null>(null);
   const [requestingEvent, setRequestingEvent] = useState<ScheduleEvent | null>(null);
   const availList = availabilityOn(date).filter((a) =>
@@ -520,21 +527,6 @@ function DayPanel({
   const dayReservations = reservationsOn(date);
   const dayRequests = requestsOn(date);
   const members = users.filter((u) => u.role === "member");
-
-  function newEvent(): ScheduleEvent {
-    return {
-      id: uid(),
-      date,
-      type: "train",
-      title: "",
-      location: "",
-      assigneeIds: [],
-      start: "10:00",
-      end: "",
-      note: "",
-      hasReward: true,
-    };
-  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -549,18 +541,44 @@ function DayPanel({
         {dayReservations.length > 0 && (
           <div className="avail-box">
             <strong>この日の宿泊予約（{dayReservations.length}件）</strong>
-            <div className="avail-member-list">
+            <div className="reservation-list">
               {dayReservations.map((r) => (
-                <div key={r.id} className="avail-member">
-                  <span className="avail-chip">{r.guestName || "ゲスト"}</span>
-                  <span className="tag">
-                    {RESERVATION_SOURCE_LABEL[r.source] ?? r.source}
-                  </span>
-                  <span className="avail-slots">
+                <div key={r.id} className="reservation-item">
+                  <div className="reservation-head">
+                    <span className="avail-chip">{r.guestName || "ゲスト"}</span>
+                    <span className="tag">{r.roomType || "部屋未設定"}</span>
+                    <span className="tag muted">
+                      {RESERVATION_SOURCE_LABEL[r.source] ?? r.source}
+                    </span>
+                  </div>
+                  <div className="reservation-meta">
                     {r.checkinDate.slice(5).replace("-", "/")}〜
                     {r.checkoutDate.slice(5).replace("-", "/")}
-                    {r.roomType ? ` / ${r.roomType}` : ""}
-                  </span>
+                    <span className="reservation-sep">·</span>
+                    IN {r.checkinTime}
+                    <span className="reservation-sep">·</span>
+                    {guestSummary(r)}
+                  </div>
+                  {r.address && <div className="reservation-meta">📍 {r.address}</div>}
+                  {r.note && <div className="event-note">{r.note}</div>}
+                  {me.role === "owner" && (
+                    <div className="event-actions">
+                      <button className="ghost" onClick={() => setEditingReservation(r)}>
+                        編集
+                      </button>
+                      <button
+                        className="ghost danger"
+                        onClick={() => {
+                          if (confirm(`「${r.guestName || "ゲスト"}」の予約を削除しますか？`)) {
+                            deleteReservation(r.id);
+                            onChange();
+                          }
+                        }}
+                      >
+                        削除
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -729,18 +747,180 @@ function DayPanel({
               onChange();
             }}
           />
+        ) : editingReservation ? (
+          <ReservationForm
+            value={editingReservation}
+            onCancel={() => setEditingReservation(null)}
+            onSave={(r) => {
+              upsertReservation(r);
+              setEditingReservation(null);
+              onChange();
+            }}
+          />
         ) : (
+          me.role === "owner" &&
           !requestingEvent && (
-            <button className="primary full" onClick={() => setEditing(newEvent())}>
-              ＋ 予定を追加
+            <button
+              className="primary full"
+              onClick={() => setEditingReservation(newManualReservation(date))}
+            >
+              ＋ 予約を追加
             </button>
           )
         )}
-        {me.role === "owner" && (
-          <p className="muted small">
-            ※ 撮影日・納品日もここで「種別」を選んで登録します
-          </p>
-        )}
+      </div>
+    </div>
+  );
+}
+
+// 人数の内訳を「大人2・就学児1」のように短くまとめる
+function guestSummary(r: Reservation): string {
+  const parts: string[] = [];
+  if (r.adults) parts.push(`大人${r.adults}`);
+  if (r.children) parts.push(`就学児${r.children}`);
+  if (r.infants) parts.push(`幼児${r.infants}`);
+  return parts.length > 0 ? parts.join("・") : "人数未設定";
+}
+
+// 管理者が予約を手入力するフォーム
+function ReservationForm({
+  value,
+  onCancel,
+  onSave,
+}: {
+  value: Reservation;
+  onCancel: () => void;
+  onSave: (r: Reservation) => void;
+}) {
+  const [draft, setDraft] = useState<Reservation>(value);
+
+  function set<K extends keyof Reservation>(key: K, val: Reservation[K]) {
+    setDraft((d) => ({ ...d, [key]: val }));
+  }
+
+  function handleSave() {
+    if (!draft.guestName.trim()) return alert("氏名を入力してください");
+    if (draft.checkoutDate <= draft.checkinDate)
+      return alert("チェックアウト日はチェックイン日より後にしてください");
+    onSave({ ...draft, guestName: draft.guestName.trim() });
+  }
+
+  return (
+    <div className="event-form">
+      <label>
+        部屋
+        <div className="shape-toggle">
+          {ROOM_TYPES.map((room) => (
+            <button
+              key={room}
+              type="button"
+              className={`type-btn ${draft.roomType === room ? "on" : ""}`}
+              onClick={() => set("roomType", room)}
+            >
+              {room}
+            </button>
+          ))}
+        </div>
+      </label>
+
+      <div className="row">
+        <label>
+          チェックイン日
+          <input
+            type="date"
+            value={draft.checkinDate}
+            onChange={(e) => set("checkinDate", e.target.value)}
+          />
+        </label>
+        <label>
+          チェックアウト日
+          <input
+            type="date"
+            value={draft.checkoutDate}
+            onChange={(e) => set("checkoutDate", e.target.value)}
+          />
+        </label>
+      </div>
+
+      <label>
+        チェックイン時間
+        <select
+          value={draft.checkinTime}
+          onChange={(e) => set("checkinTime", e.target.value)}
+        >
+          {CHECKIN_TIME_OPTIONS.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+      </label>
+
+      <label>
+        氏名
+        <input
+          value={draft.guestName}
+          onChange={(e) => set("guestName", e.target.value)}
+          placeholder="例: 山田 太郎"
+        />
+      </label>
+
+      <label>
+        住所
+        <input
+          value={draft.address}
+          onChange={(e) => set("address", e.target.value)}
+          placeholder="例: 東京都渋谷区○○ 1-2-3"
+        />
+      </label>
+
+      <div className="row">
+        <label>
+          大人
+          <select
+            value={draft.adults}
+            onChange={(e) => set("adults", Number(e.target.value))}
+          >
+            {GUEST_COUNT_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n}人</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          就学児
+          <select
+            value={draft.children}
+            onChange={(e) => set("children", Number(e.target.value))}
+          >
+            {GUEST_COUNT_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n}人</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          幼児
+          <select
+            value={draft.infants}
+            onChange={(e) => set("infants", Number(e.target.value))}
+          >
+            {GUEST_COUNT_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n}人</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <label>
+        メモ（オプション・任意）
+        <textarea
+          value={draft.note}
+          onChange={(e) => set("note", e.target.value)}
+          rows={3}
+          placeholder="例: 夕食なし / アレルギーあり / 到着が遅れる可能性あり"
+        />
+      </label>
+
+      <div className="form-actions">
+        <button className="ghost" onClick={onCancel}>キャンセル</button>
+        <button className="primary" onClick={handleSave}>保存</button>
       </div>
     </div>
   );
@@ -956,26 +1136,6 @@ function EventForm({
         メモ
         <textarea value={draft.note} onChange={(e) => set("note", e.target.value)} rows={2} />
       </label>
-      {me.role === "owner" && (
-        <label className="reward-toggle">
-          報酬
-          <div className="shape-toggle">
-            {([true, false] as boolean[]).map((v) => (
-              <button
-                key={String(v)}
-                type="button"
-                className={`type-btn ${(draft.hasReward !== false) === v ? "on" : ""}`}
-                onClick={() => set("hasReward", v)}
-              >
-                {v ? "あり" : "なし"}
-              </button>
-            ))}
-          </div>
-          <span className="muted small">
-            「なし」にすると、この予定は報酬の承認対象になりません
-          </span>
-        </label>
-      )}
       <div className="form-actions">
         <button className="ghost" onClick={onCancel}>キャンセル</button>
         <button className="primary" onClick={() => handleSave(false)}>保存</button>
@@ -1132,7 +1292,6 @@ function BulkShiftForm({
         start,
         end,
         note: "",
-        hasReward: true,
       });
     }
     sendPushToUsers(

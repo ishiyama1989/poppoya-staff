@@ -74,7 +74,7 @@ const toDbEvent = (e: ScheduleEvent) => ({
   start_time: e.start,
   end_time: e.end,
   note: e.note,
-  has_reward: e.hasReward !== false,
+
 })
 
 const fromDbEvent = (r: any): ScheduleEvent => ({
@@ -87,7 +87,7 @@ const fromDbEvent = (r: any): ScheduleEvent => ({
   start: r.start_time,
   end: r.end_time,
   note: r.note,
-  hasReward: r.has_reward ?? true,
+
 })
 
 const toDbAvail = (a: Availability) => ({
@@ -283,15 +283,38 @@ const fromDbAttendanceAlert = (r: any): AttendanceAlert => ({
   createdAt: r.created_at ?? '',
 })
 
-// 宿泊予約（ねっぱん！から同期。読み取り専用なので toDb 変換は不要）
+// 宿泊予約（予約サイトからのメール連携ぶんと、管理者がカレンダーで手入力したぶん）
+const toDbReservation = (r: Reservation) => ({
+  id: r.id,
+  neppan_booking_id: r.neppanBookingId,
+  source: r.source,
+  checkin_date: r.checkinDate,
+  checkout_date: r.checkoutDate,
+  checkin_time: r.checkinTime,
+  room_type: r.roomType,
+  guest_name: r.guestName,
+  address: r.address,
+  adults: r.adults,
+  children: r.children,
+  infants: r.infants,
+  note: r.note,
+  status: r.status,
+})
+
 const fromDbReservation = (r: any): Reservation => ({
   id: r.id,
   neppanBookingId: r.neppan_booking_id,
   source: r.source ?? 'other',
   checkinDate: r.checkin_date,
   checkoutDate: r.checkout_date,
+  checkinTime: r.checkin_time ?? '15:00',
   roomType: r.room_type ?? '',
   guestName: r.guest_name ?? '',
+  address: r.address ?? '',
+  adults: r.adults ?? 0,
+  children: r.children ?? 0,
+  infants: r.infants ?? 0,
+  note: r.note ?? '',
   status: r.status ?? 'confirmed',
 })
 
@@ -409,6 +432,10 @@ export function syncHandoverNotes(list: HandoverNote[]): void {
 
 export function syncAttendanceAlerts(list: AttendanceAlert[]): void {
   upsertRows('attendance_alerts', list, toDbAttendanceAlert, 'id').catch(() => {})
+}
+
+export function syncReservations(list: Reservation[]): void {
+  upsertRows('reservations', list, toDbReservation, 'id').catch(() => {})
 }
 
 // ---- SaaS版：ログイン中の組織のデータを読み込む（RLSで自組織のみ） ----

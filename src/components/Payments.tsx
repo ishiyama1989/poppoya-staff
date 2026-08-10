@@ -5,7 +5,6 @@ import {
   getEvents,
   getMembers,
   requestEventApproval,
-  setEventReward,
 } from "../store";
 import { hoursBetween, quarterLabel, quarterOf, yen } from "../lib/date";
 import { sendPushToUsers } from "../lib/push";
@@ -249,17 +248,6 @@ export default function Payments() {
                       合計 <strong>{yen((Number(amountVal) || 0) + extraTotal(key))}</strong>
                     </span>
                     <div className="approval-btns">
-                      <button
-                        className="ghost mini"
-                        onClick={() => {
-                          if (confirm("この予定を報酬なし（対象外）にしますか？")) {
-                            setEventReward(e.id, false);
-                            setVersion((v) => v + 1);
-                          }
-                        }}
-                      >
-                        報酬なし
-                      </button>
                       <button className="primary mini" onClick={() => send(e, userId)}>
                         承認依頼を送る
                       </button>

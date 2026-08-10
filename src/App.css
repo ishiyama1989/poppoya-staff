@@ -794,6 +794,19 @@ label input, label select, label textarea { margin-top: 6px; font-weight: 400; }
 .cal-avail-name.more { background: var(--bg); color: var(--muted); }
 .cal-avail-slots { font-size: 9px; font-weight: 500; color: #c86030; opacity: 0.85; margin-left: 2px; }
 
+/* 日付パネルの宿泊予約カード */
+.reservation-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.reservation-item {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+.reservation-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.reservation-head .tag.muted { background: var(--bg); color: var(--muted); }
+.reservation-meta { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+.reservation-sep { margin: 0 5px; opacity: 0.4; }
+
 .cal-reservations {
   font-size: 10px;
   font-weight: 600;

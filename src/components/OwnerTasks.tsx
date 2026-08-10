@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 import type { EventType, RequestStatus, User } from "../types";
-import { REQUEST_STATUS_LABEL } from "../types";
-import { addRequest, getMembers, requestsFromUser, rejectRequest } from "../store";
+import { EVENT_TYPE_LABEL, REQUEST_STATUS_LABEL } from "../types";
+import {
+  addRequest,
+  approveRequest,
+  getMembers,
+  getUsers,
+  pendingRequestsForUser,
+  requestsFromUser,
+  rejectRequest,
+} from "../store";
 import { sendPushToUsers } from "../lib/push";
 import MapLinks from "./MapLinks";
 
@@ -22,6 +30,13 @@ export default function OwnerTasks({ me }: { me: User }) {
 
   const requests = useMemo(() => requestsFromUser(me.id), [version, me.id]);
   const members = useMemo(() => getMembers(), [version]);
+  // 自分宛に届いていて、まだ返事をしていない依頼
+  const incoming = useMemo(() => pendingRequestsForUser(me.id), [version, me.id]);
+  const userNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const u of getUsers()) map[u.id] = u.name;
+    return map;
+  }, [version]);
 
   const filtered = useMemo(
     () => (filter === "all" ? requests : requests.filter((r) => r.status === filter)),
@@ -46,6 +61,56 @@ export default function OwnerTasks({ me }: { me: User }) {
           スタッフに「この日シフトに入れませんか？」と依頼を送れます。承認されるとカレンダーに予定として登録されます。
         </p>
       </div>
+
+      {/* 自分宛に届いている依頼。ここで承認するとカレンダーに予定として入る */}
+      {incoming.length > 0 && (
+        <>
+          <h3 className="req-section-title">
+            自分宛の承認待ち（{incoming.length}件）
+          </h3>
+          <div className="req-cards">
+            {incoming.map((r) => (
+              <div key={r.id} className="req-card">
+                <div className="req-card-head">
+                  <span className="req-date">{r.date.replace(/-/g, "/")}</span>
+                  <span className="tag">{EVENT_TYPE_LABEL[r.type]}</span>
+                </div>
+                <div className="req-card-title">{r.title}</div>
+                <div className="req-card-meta">
+                  🕒 {r.start}–{r.end || "未定"}
+                  {r.location ? ` ／ 📍 ${r.location}` : ""}
+                </div>
+                <div className="req-card-meta">
+                  依頼者: {userNameById[r.fromUserId] ?? "管理者"}
+                </div>
+                {r.note && <div className="req-card-note">{r.note}</div>}
+                <div className="req-card-actions">
+                  <button
+                    className="ghost danger"
+                    onClick={() => {
+                      rejectRequest(r.id);
+                      refresh();
+                    }}
+                  >
+                    却下
+                  </button>
+                  <button
+                    className="primary"
+                    onClick={() => {
+                      approveRequest(r.id);
+                      refresh();
+                    }}
+                  >
+                    承認する
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <h3 className="req-section-title">送った依頼</h3>
 
       <div className="tasks-toolbar">
         <div className="task-filter-tabs">

@@ -15,6 +15,8 @@ import type {
   User,
 } from "./types";
 import type { EventApproval } from "./types";
+import { DEFAULT_CHECKIN_TIME, ROOM_TYPES } from "./types";
+import { addDays } from "./lib/date";
 import { pinToAuthPassword } from "./lib/auth";
 import {
   supabase,
@@ -31,6 +33,7 @@ import {
   syncChecklistItems,
   syncHandoverNotes,
   syncAttendanceAlerts,
+  syncReservations,
   deleteRemote,
 } from "./lib/supabase";
 
@@ -267,13 +270,6 @@ export function upsertEvent(ev: ScheduleEvent): void {
 export function deleteEvent(id: string): void {
   write(KEYS.events, getEvents().filter((e) => e.id !== id));
   deleteRemote("schedule_events", { id });
-}
-
-// 予定の報酬有無を切り替える
-export function setEventReward(eventId: string, hasReward: boolean): void {
-  const ev = getEvents().find((e) => e.id === eventId);
-  if (!ev) return;
-  upsertEvent({ ...ev, hasReward });
 }
 
 // ---- アプリ内通知（自分に割り当てられた新しい予定） ----
@@ -682,7 +678,6 @@ export function eventsAwaitingAdmin(): AwaitingApprovalItem[] {
   const approvals = getEventApprovals();
   const items: AwaitingApprovalItem[] = [];
   for (const e of getEvents()) {
-    if (e.hasReward === false) continue; // 報酬なしの予定は対象外
     if (e.date >= t) continue; // 過ぎた予定のみ
     for (const userId of e.assigneeIds) {
       const has = approvals.some(
@@ -726,6 +721,46 @@ export function reservationsOn(date: string): Reservation[] {
       r.checkinDate <= date &&
       date < r.checkoutDate
   );
+}
+
+function saveReservations(list: Reservation[]): void {
+  write(KEYS.reservations, list);
+  syncReservations(list);
+}
+
+// 管理者がカレンダーから手入力した予約を保存する（新規・編集どちらも）
+export function upsertReservation(reservation: Reservation): void {
+  const list = getReservations();
+  const idx = list.findIndex((r) => r.id === reservation.id);
+  if (idx >= 0) list[idx] = reservation;
+  else list.push(reservation);
+  saveReservations(list);
+}
+
+// 手入力の予約に付ける新しいID。予約サイト由来のものと衝突しないよう manual: を付ける
+export function newManualReservation(date: string): Reservation {
+  const key = `manual:${uid()}`;
+  return {
+    id: key,
+    neppanBookingId: key,
+    source: "manual",
+    checkinDate: date,
+    checkoutDate: addDays(date, 1),
+    checkinTime: DEFAULT_CHECKIN_TIME,
+    roomType: ROOM_TYPES[0],
+    guestName: "",
+    address: "",
+    adults: 1,
+    children: 0,
+    infants: 0,
+    note: "",
+    status: "confirmed",
+  };
+}
+
+export function deleteReservation(id: string): void {
+  write(KEYS.reservations, getReservations().filter((r) => r.id !== id));
+  deleteRemote("reservations", { id });
 }
 
 // ---- 出退勤打刻 ----

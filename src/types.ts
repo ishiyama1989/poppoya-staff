@@ -42,7 +42,6 @@ export interface ScheduleEvent {
   start: string; // "HH:MM"
   end: string; // "HH:MM"
   note: string;
-  hasReward?: boolean; // 報酬の対象か（既定: true）。falseなら報酬承認の対象外
 }
 
 // オーナーからメンバーへの依頼（申請）。メンバーが承認すると予定になる
@@ -205,16 +204,41 @@ export type ReservationStatus = "confirmed" | "cancelled";
 export interface Reservation {
   id: string;
   neppanBookingId: string;
-  source: string; // 予約サイト（neppan / rakuten / jalan / booking / airbnb / ikyu / other）
+  source: string; // manual（手入力）/ neppan / rakuten / jalan / booking / airbnb / ikyu / other
   checkinDate: string; // "YYYY-MM-DD"
   checkoutDate: string; // "YYYY-MM-DD"
+  checkinTime: string; // "HH:MM"
   roomType: string;
   guestName: string;
+  address: string;
+  adults: number; // 大人
+  children: number; // 就学児
+  infants: number; // 幼児
+  note: string;
   status: ReservationStatus;
 }
 
+// 客室（宿ぽっぽやは2部屋）
+export const ROOM_TYPES = ["トレインルーム", "レトロルーム"] as const;
+
+// 人数プルダウンの選択肢（0〜5人）
+export const GUEST_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5];
+
+// チェックイン時刻の選択肢（15:00を既定に、30分刻み）
+export const CHECKIN_TIME_OPTIONS: string[] = (() => {
+  const list: string[] = [];
+  for (let h = 6; h <= 23; h++) {
+    list.push(`${String(h).padStart(2, "0")}:00`);
+    list.push(`${String(h).padStart(2, "0")}:30`);
+  }
+  return list;
+})();
+
+export const DEFAULT_CHECKIN_TIME = "15:00";
+
 // 予約サイトの表示名
 export const RESERVATION_SOURCE_LABEL: Record<string, string> = {
+  manual: "手入力",
   neppan: "ねっぱん",
   rakuten: "楽天トラベル",
   jalan: "じゃらん",

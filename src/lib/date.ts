@@ -7,6 +7,13 @@ export function ymd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+// "YYYY-MM-DD" に日数を足す（宿泊日数からチェックアウト日を出すときなどに使う）
+export function addDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return ymd(d);
+}
+
 export function todayStr(): string {
   return ymd(new Date());
 }
