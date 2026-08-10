@@ -1,23 +1,16 @@
 // Supabase Edge Function: ねっぱん！の予約通知メールを受け取り、reservationsテーブルに反映する
 //
 // 使い方:
-//   1. メール受信サービス(Resend Inbound等)のWebhook送信先に、この関数のURLを設定する
-//   2. Gmailの転送設定で、ねっぱん！からの予約通知メールをそのアドレスへ転送する
-//   3. メールが届くたびにこの関数が呼ばれ、本文を解析して予約が自動でカレンダーに反映される
+//   google-apps-script/reservation-sync.gs をGoogle Apps Scriptに設置し、
+//   Gmailの予約通知メールを定期的に読み取ってこの関数へPOSTしてもらう。
+//   添付画像はApps Script側でGoogleドライブの文字認識にかけ、本文に連結して送られてくる。
 //
 // 必要なsecrets:
 //   INBOUND_MAIL_TOKEN … Webhookの合言葉（任意。未設定なら検証しない）
-//   ANTHROPIC_API_KEY  … 添付画像の解析に使用（未設定なら画像解析はスキップされる）
 //
 // メール本文の書式はねっぱん！の設定によって変わるため、PATTERNS を実際のメールに合わせて調整する。
-// 本文から読み取れない場合は、添付画像（予約画面のスクリーンショット等）をClaudeで解析する。
 // 解析に失敗したメールは reservation_mail_errors に記録し、後から手動で確認・修正できるようにする。
 import { createClient } from "npm:@supabase/supabase-js@2";
-import {
-  isSupportedImage,
-  parseReservationImage,
-  type SupportedMediaType,
-} from "./parse-image.ts";
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -136,33 +129,6 @@ function extractBody(payload: Record<string, any>): string {
   return "";
 }
 
-interface MailImage {
-  data: string; // base64（データURI接頭辞なし）
-  mediaType: SupportedMediaType;
-}
-
-// 添付ファイルの持ち方も受信サービスによって違うため、代表的な形をまとめて拾う
-function extractImages(payload: Record<string, any>): MailImage[] {
-  const rawList: any[] =
-    payload.attachments ?? payload.Attachments ?? payload.email?.attachments ?? [];
-  if (!Array.isArray(rawList)) return [];
-
-  const images: MailImage[] = [];
-  for (const a of rawList) {
-    const mediaType: string = a?.content_type ?? a?.ContentType ?? a?.contentType ?? "";
-    if (!isSupportedImage(mediaType)) continue;
-
-    let data: string = a?.content ?? a?.Content ?? a?.data ?? "";
-    if (typeof data !== "string" || !data) continue;
-    // "data:image/png;base64,XXXX" 形式で来た場合は接頭辞を落とす
-    const comma = data.indexOf(",");
-    if (data.startsWith("data:") && comma !== -1) data = data.slice(comma + 1);
-
-    images.push({ data, mediaType });
-  }
-  return images;
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
@@ -180,11 +146,7 @@ Deno.serve(async (req) => {
 
     const payload = await req.json();
     const body = extractBody(payload);
-    const images = extractImages(payload);
-    // 本文なし・画像なしなら解析のしようがない
-    if (!body && images.length === 0) {
-      throw new Error("mail body and images not found in payload");
-    }
+    if (!body) throw new Error("mail body not found in payload");
 
     // 対象の組織（1社専用運用なので最初の組織）
     const { data: org, error: orgErr } = await supabase
@@ -196,36 +158,14 @@ Deno.serve(async (req) => {
     if (orgErr) throw orgErr;
     if (!org) throw new Error("organization not found");
 
-    // まず本文の文字から読み取り、だめなら添付画像をClaudeで読み取る
-    let parsed = body ? parseReservationMail(body) : null;
-    let source = "text";
-
-    if (!parsed) {
-      for (const img of images) {
-        const fromImage = await parseReservationImage(img.data, img.mediaType);
-        // 予約番号とチェックイン日が読めなければ予約として登録できない
-        if (!fromImage?.bookingId || !fromImage.checkinDate) continue;
-        parsed = {
-          bookingId: fromImage.bookingId,
-          checkinDate: fromImage.checkinDate,
-          // チェックアウト日が読めなければ1泊とみなす（本文解析と同じ扱い）
-          checkoutDate: fromImage.checkoutDate ?? addNights(fromImage.checkinDate, 1),
-          guestName: fromImage.guestName ?? "",
-          roomType: fromImage.roomType ?? "",
-          cancelled: fromImage.cancelled ?? false,
-        };
-        source = "image";
-        break;
-      }
-    }
-
+    // 本文（画像はApps Script側で文字に起こされて本文に連結済み）から読み取る
+    const parsed = parseReservationMail(body);
     if (!parsed) {
       // 解析できなかったメールは捨てずに記録し、書式を後から調整できるようにする
       await supabase.from("reservation_mail_errors").insert({
         org_id: org.id,
         raw_body: body.slice(0, 5000),
-        reason:
-          images.length > 0 ? "parse failed (text and image)" : "parse failed (text)",
+        reason: "parse failed",
       });
       return new Response(
         JSON.stringify({ ok: false, error: "could not parse mail", saved: true }),
@@ -249,7 +189,7 @@ Deno.serve(async (req) => {
     );
     if (upsertErr) throw upsertErr;
 
-    return new Response(JSON.stringify({ ok: true, source, reservation: parsed }), {
+    return new Response(JSON.stringify({ ok: true, reservation: parsed }), {
       headers: { ...cors, "Content-Type": "application/json" },
     });
   } catch (e) {
