@@ -174,6 +174,13 @@ create table reservations (
   unique (org_id, neppan_booking_id)
 );
 
+-- 解析できなかった予約通知メール（書式変更の検知・後から手動対応するため保存）
+create table reservation_mail_errors (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null references organizations(id) on delete cascade,
+  raw_body text, reason text, created_at timestamptz default now()
+);
+
 -- =====================================================================
 -- RLS：自分の組織のデータだけ読み書きできるようにする
 -- =====================================================================
