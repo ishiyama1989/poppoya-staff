@@ -29,12 +29,13 @@ export interface User {
 }
 
 // 予定（いつ・どこで・誰が・何を）
-export type EventType = "shift" | "shooting" | "meeting" | "delivery" | "other";
+// 客室ごとに色分けするため、種別は客室名で持つ
+export type EventType = "train" | "retro";
 
 export interface ScheduleEvent {
   id: string;
   date: string; // "YYYY-MM-DD"
-  type: EventType; // shooting=撮影 / meeting=会議 / delivery=納品 / other=その他
+  type: EventType; // train=トレインルーム / retro=レトロルーム
   title: string; // 何をするか
   location: string; // どこで
   assigneeIds: string[]; // 誰が（複数可）
@@ -172,25 +173,31 @@ export interface CommentTemplate {
 }
 
 export const EVENT_TYPE_LABEL: Record<string, string> = {
+  train: "トレインルーム",
+  retro: "レトロルーム",
+  // 以下は旧データ互換（過去に登録済みの予定が壊れないように残す）
   shift: "出勤",
   shooting: "撮影",
   meeting: "会議",
   delivery: "納品",
   other: "その他",
-  work: "稼働", // 旧データ互換
+  work: "稼働",
 };
 
 export const EVENT_TYPE_COLOR: Record<string, string> = {
-  shift: "#12b886",   // 緑
-  shooting: "#f59e0b", // オレンジ
-  meeting: "#8b5cf6", // 紫
-  delivery: "#ef4444", // 赤
-  other: "#64748b",   // グレー
-  work: "#3b82f6",    // 旧データ互換（青）
+  train: "#3b82f6", // 青
+  retro: "#f59e0b", // オレンジ
+  // 以下は旧データ互換
+  shift: "#12b886",
+  shooting: "#f59e0b",
+  meeting: "#8b5cf6",
+  delivery: "#ef4444",
+  other: "#64748b",
+  work: "#3b82f6",
 };
 
 // 凡例・選択肢に表示する順序
-export const EVENT_TYPES: EventType[] = ["shift", "shooting", "meeting", "delivery", "other"];
+export const EVENT_TYPES: EventType[] = ["train", "retro"];
 
 // 宿泊予約（ねっぱん！のiCalフィードから同期。アプリ側では編集不可・読み取り専用）
 export type ReservationStatus = "confirmed" | "cancelled";

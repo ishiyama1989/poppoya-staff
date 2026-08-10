@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { RequestStatus, User } from "../types";
+import type { EventType, RequestStatus, User } from "../types";
 import { REQUEST_STATUS_LABEL } from "../types";
 import { addRequest, getMembers, requestsFromUser, rejectRequest } from "../store";
 import { sendPushToUsers } from "../lib/push";
@@ -151,6 +151,7 @@ function ShiftRequestForm({
   const [start, setStart] = useState("10:00");
   const [end, setEnd] = useState("");
   const [title, setTitle] = useState("この日シフトに入れませんか？");
+  const [roomType, setRoomType] = useState<EventType>("train");
   const [location, setLocation] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
@@ -168,7 +169,7 @@ function ShiftRequestForm({
       date,
       fromUserId,
       toUserId,
-      type: "shift",
+      type: roomType,
       title: title.trim(),
       location: location.trim(),
       start,
@@ -207,6 +208,16 @@ function ShiftRequestForm({
             onChange={(e) => setTitle(e.target.value)}
             placeholder="例: この日シフトに入れませんか？"
           />
+        </label>
+        <label>
+          客室
+          <select
+            value={roomType}
+            onChange={(e) => setRoomType(e.target.value as EventType)}
+          >
+            <option value="train">トレインルーム</option>
+            <option value="retro">レトロルーム</option>
+          </select>
         </label>
         <div className="task-form-row">
           <label>

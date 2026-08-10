@@ -18,12 +18,7 @@ export function payLinesFor(
   quarter: string
 ): PayLine[] {
   return events
-    .filter(
-      (e) =>
-        e.type !== "delivery" &&
-        quarterOf(e.date) === quarter &&
-        e.assigneeIds.includes(userId)
-    )
+    .filter((e) => quarterOf(e.date) === quarter && e.assigneeIds.includes(userId))
     .sort((a, b) => (a.date < b.date ? -1 : 1))
     .map((e) => {
       const hours = hoursBetween(e.start, e.end);
@@ -38,8 +33,7 @@ export function quartersForUserWork(
 ): string[] {
   const set = new Set<string>();
   for (const e of events)
-    if (e.type !== "delivery" && e.assigneeIds.includes(userId))
-      set.add(quarterOf(e.date));
+    if (e.assigneeIds.includes(userId)) set.add(quarterOf(e.date));
   return Array.from(set).sort().reverse();
 }
 

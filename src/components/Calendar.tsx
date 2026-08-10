@@ -46,7 +46,10 @@ import { WEEKDAYS, monthGrid, todayStr, ymd } from "../lib/date";
 import { sendPushToUsers } from "../lib/push";
 import MapLinks from "./MapLinks";
 
+// プッシュ通知の文面に使う表示名（旧データの種別も残しておく）
 const TYPE_JP: Record<string, string> = {
+  train: "トレインルーム",
+  retro: "レトロルーム",
   shift: "出勤",
   shooting: "撮影",
   meeting: "会議",
@@ -522,7 +525,7 @@ function DayPanel({
     return {
       id: uid(),
       date,
-      type: "shooting",
+      type: "train",
       title: "",
       location: "",
       assigneeIds: [],
@@ -900,11 +903,8 @@ function EventForm({
             value={draft.type}
             onChange={(e) => set("type", e.target.value as EventType)}
           >
-            <option value="shift">出勤</option>
-            <option value="shooting">撮影</option>
-            <option value="meeting">会議</option>
-            <option value="delivery">納品</option>
-            <option value="other">その他</option>
+            <option value="train">トレインルーム</option>
+            <option value="retro">レトロルーム</option>
           </select>
         </label>
         <label>
@@ -1008,7 +1008,7 @@ function RequestForm({
   onCancel: () => void;
   onSent: () => void;
 }) {
-  const [type, setType] = useState<EventType>("shooting");
+  const [type, setType] = useState<EventType>("train");
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
   const [start, setStart] = useState("10:00");
@@ -1054,11 +1054,8 @@ function RequestForm({
         <label>
           種別
           <select value={type} onChange={(e) => setType(e.target.value as EventType)}>
-            <option value="shift">出勤</option>
-            <option value="shooting">撮影</option>
-            <option value="meeting">会議</option>
-            <option value="delivery">納品</option>
-            <option value="other">その他</option>
+            <option value="train">トレインルーム</option>
+            <option value="retro">レトロルーム</option>
           </select>
         </label>
         <label>
@@ -1116,7 +1113,7 @@ function BulkShiftForm({
 }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<EventType>("shooting");
+  const [type, setType] = useState<EventType>("train");
   const [location, setLocation] = useState("");
   const [start, setStart] = useState("10:00");
   const [end, setEnd] = useState("");
@@ -1172,11 +1169,8 @@ function BulkShiftForm({
             <label>
               種別
               <select value={type} onChange={(e) => setType(e.target.value as EventType)}>
-                <option value="shift">出勤</option>
-                <option value="shooting">撮影</option>
-                <option value="meeting">会議</option>
-                <option value="delivery">納品</option>
-                <option value="other">その他</option>
+                <option value="train">トレインルーム</option>
+                <option value="retro">レトロルーム</option>
               </select>
             </label>
             <label>
