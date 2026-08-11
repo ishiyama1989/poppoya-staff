@@ -323,7 +323,6 @@ const fromDbReservation = (r: any): Reservation => ({
 const toDbCafeHours = (c: CafeHours) => ({
   id: c.id,
   date: c.date,
-  closed: c.closed,
   open_time: c.openTime,
   close_time: c.closeTime,
   note: c.note,
@@ -332,7 +331,6 @@ const toDbCafeHours = (c: CafeHours) => ({
 const fromDbCafeHours = (c: any): CafeHours => ({
   id: c.id,
   date: c.date,
-  closed: c.closed ?? false,
   openTime: c.open_time ?? DEFAULT_CAFE_OPEN_TIME,
   closeTime: c.close_time ?? DEFAULT_CAFE_CLOSE_TIME,
   note: c.note ?? '',

@@ -826,7 +826,6 @@ export function newCafeHours(date: string): CafeHours {
   return {
     id: `cafe:${uid()}`,
     date,
-    closed: false,
     openTime: DEFAULT_CAFE_OPEN_TIME,
     closeTime: DEFAULT_CAFE_CLOSE_TIME,
     note: "",

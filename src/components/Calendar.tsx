@@ -474,9 +474,7 @@ export default function Calendar({
                 )}
                 {cafeHoursByDate[ds] && (
                   <div className="cal-reservations cal-cafe-hours">
-                    {cafeHoursByDate[ds].closed
-                      ? "☕ LOCOMO CAFE 定休日"
-                      : `☕ ${cafeHoursByDate[ds].openTime}–${cafeHoursByDate[ds].closeTime}`}
+                    ☕ {cafeHoursByDate[ds].openTime}–{cafeHoursByDate[ds].closeTime}
                   </div>
                 )}
                 <div className="cal-events">
@@ -628,9 +626,7 @@ function DayPanel({
           ) : dayCafeHours ? (
             <div className="reservation-item">
               <div className="reservation-meta">
-                {dayCafeHours.closed
-                  ? "定休日"
-                  : `営業時間 ${dayCafeHours.openTime}〜${dayCafeHours.closeTime}`}
+                営業時間 {dayCafeHours.openTime}〜{dayCafeHours.closeTime}
               </div>
               {dayCafeHours.note && <div className="event-note">{dayCafeHours.note}</div>}
               {me.role === "owner" && (
@@ -848,7 +844,7 @@ function DayPanel({
 }
 
 // 人数の内訳を「大人2・就学児1」のように短くまとめる
-// LOCOMO CAFEの営業時間を入力するフォーム（休業日はチェックで開閉時間を隠す）
+// LOCOMO CAFEの営業時間を入力するフォーム（営業する日だけ登録する）
 function CafeHoursForm({
   value,
   onCancel,
@@ -863,41 +859,31 @@ function CafeHoursForm({
     setDraft((d) => ({ ...d, [key]: val }));
   }
   function handleSave() {
-    if (!draft.closed && draft.closeTime <= draft.openTime) {
+    if (draft.closeTime <= draft.openTime) {
       return alert("閉店時間は開店時間より後にしてください");
     }
     onSave(draft);
   }
   return (
     <div className="event-form">
-      <label className="checkbox-row">
-        <input
-          type="checkbox"
-          checked={draft.closed}
-          onChange={(e) => set("closed", e.target.checked)}
-        />
-        定休日（営業しない）
-      </label>
-      {!draft.closed && (
-        <div className="row">
-          <label>
-            開店時間
-            <select value={draft.openTime} onChange={(e) => set("openTime", e.target.value)}>
-              {TIME_SLOTS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            閉店時間
-            <select value={draft.closeTime} onChange={(e) => set("closeTime", e.target.value)}>
-              {TIME_SLOTS.map((t) => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-      )}
+      <div className="row">
+        <label>
+          開店時間
+          <select value={draft.openTime} onChange={(e) => set("openTime", e.target.value)}>
+            {TIME_SLOTS.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          閉店時間
+          <select value={draft.closeTime} onChange={(e) => set("closeTime", e.target.value)}>
+            {TIME_SLOTS.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </label>
+      </div>
       <label>
         メモ（オプション・任意）
         <textarea

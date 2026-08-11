@@ -220,11 +220,10 @@ export interface Reservation {
   status: ReservationStatus;
 }
 
-// LOCOMO CAFEの営業時間（1日1件。休業日は closed=true で記録）
+// LOCOMO CAFEの営業時間（1日1件。営業する日だけ登録する）
 export interface CafeHours {
   id: string;
   date: string; // "YYYY-MM-DD"
-  closed: boolean;
   openTime: string; // "HH:MM"
   closeTime: string; // "HH:MM"
   note: string;

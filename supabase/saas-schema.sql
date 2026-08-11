@@ -182,12 +182,11 @@ create table reservations (
   unique (org_id, neppan_booking_id)
 );
 
--- LOCOMO CAFEの営業時間（1日1件。休業日は closed=true で記録）
+-- LOCOMO CAFEの営業時間（1日1件。営業する日だけ登録する）
 create table cafe_hours (
   id text primary key,
   org_id uuid not null references organizations(id) on delete cascade,
   date text not null,
-  closed boolean not null default false,
   open_time text default '09:00',
   close_time text default '17:00',
   note text default '',
