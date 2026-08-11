@@ -3,6 +3,7 @@ import type {
   AttendanceAlert,
   AttendanceAlertKind,
   Availability,
+  CafeHours,
   ChecklistItem,
   CommentTemplate,
   HandoverNote,
@@ -15,7 +16,12 @@ import type {
   User,
 } from "./types";
 import type { EventApproval } from "./types";
-import { DEFAULT_CHECKIN_TIME, ROOM_TYPES } from "./types";
+import {
+  DEFAULT_CHECKIN_TIME,
+  ROOM_TYPES,
+  DEFAULT_CAFE_OPEN_TIME,
+  DEFAULT_CAFE_CLOSE_TIME,
+} from "./types";
 import { addDays } from "./lib/date";
 import { pinToAuthPassword } from "./lib/auth";
 import {
@@ -34,6 +40,7 @@ import {
   syncHandoverNotes,
   syncAttendanceAlerts,
   syncReservations,
+  syncCafeHours,
   deleteRemote,
 } from "./lib/supabase";
 
@@ -48,6 +55,7 @@ const KEYS = {
   recipients: "sns_recipients",
   eventApprovals: "sns_event_approvals",
   reservations: "sns_reservations",
+  cafeHours: "sns_cafe_hours",
   timeClocks: "sns_time_clocks",
   checklistItems: "sns_checklist_items",
   handoverNotes: "sns_handover_notes",
@@ -789,6 +797,45 @@ export function newManualReservation(date: string): Reservation {
 export function deleteReservation(id: string): void {
   write(KEYS.reservations, getReservations().filter((r) => r.id !== id));
   deleteRemote("reservations", { id });
+}
+
+// ---- LOCOMO CAFE の営業時間（1日1件） ----
+export function getCafeHours(): CafeHours[] {
+  return read<CafeHours[]>(KEYS.cafeHours, []);
+}
+
+export function cafeHoursOn(date: string): CafeHours | null {
+  return getCafeHours().find((c) => c.date === date) ?? null;
+}
+
+function saveCafeHours(list: CafeHours[]): void {
+  write(KEYS.cafeHours, list);
+  syncCafeHours(list);
+}
+
+// その日の営業時間を保存する（同じ日付が既にあれば上書き、1日1件のため）
+export function upsertCafeHours(hours: CafeHours): void {
+  const list = getCafeHours().filter((c) => c.date !== hours.date || c.id === hours.id);
+  const idx = list.findIndex((c) => c.id === hours.id);
+  if (idx >= 0) list[idx] = hours;
+  else list.push(hours);
+  saveCafeHours(list);
+}
+
+export function newCafeHours(date: string): CafeHours {
+  return {
+    id: `cafe:${uid()}`,
+    date,
+    closed: false,
+    openTime: DEFAULT_CAFE_OPEN_TIME,
+    closeTime: DEFAULT_CAFE_CLOSE_TIME,
+    note: "",
+  };
+}
+
+export function deleteCafeHours(id: string): void {
+  write(KEYS.cafeHours, getCafeHours().filter((c) => c.id !== id));
+  deleteRemote("cafe_hours", { id });
 }
 
 // ---- 出退勤打刻 ----

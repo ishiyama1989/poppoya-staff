@@ -220,6 +220,19 @@ export interface Reservation {
   status: ReservationStatus;
 }
 
+// LOCOMO CAFEの営業時間（1日1件。休業日は closed=true で記録）
+export interface CafeHours {
+  id: string;
+  date: string; // "YYYY-MM-DD"
+  closed: boolean;
+  openTime: string; // "HH:MM"
+  closeTime: string; // "HH:MM"
+  note: string;
+}
+
+export const DEFAULT_CAFE_OPEN_TIME = "09:00";
+export const DEFAULT_CAFE_CLOSE_TIME = "17:00";
+
 // 客室（宿ぽっぽやは2部屋）
 // 宿泊できるのはこの2室のみ。1室につき1日1組までしか受けられない。
 // （LOCOMO CAFE は宿泊ではなく業務場所なので、ここには含めない）

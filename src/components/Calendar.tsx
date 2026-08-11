@@ -10,6 +10,7 @@ import {
   GUEST_COUNT_OPTIONS,
   CHECKIN_TIME_OPTIONS,
   SLOT_LABEL,
+  type CafeHours,
   type ChecklistItem,
   type EventType,
   type HandoverNote,
@@ -32,6 +33,11 @@ import {
   eventsAwaitingAdmin,
   getMembers,
   getReservations,
+  getCafeHours,
+  cafeHoursOn,
+  upsertCafeHours,
+  newCafeHours,
+  deleteCafeHours,
   getUnseenAssignedEvents,
   getUsers,
   handoverNotesOn,
@@ -151,6 +157,14 @@ export default function Calendar({
     }
     return map;
   }, [reservations]);
+
+  // LOCOMO CAFEの営業時間（日付ごとに1件）
+  const cafeHours = useMemo(() => getCafeHours(), [version]);
+  const cafeHoursByDate = useMemo(() => {
+    const map: Record<string, CafeHours> = {};
+    for (const c of cafeHours) map[c.date] = c;
+    return map;
+  }, [cafeHours]);
 
   // 予約はあるのにスタッフが一人も配置されていない日（当月のみ）
   const shortStaffedDates = useMemo(() => {
@@ -458,6 +472,13 @@ export default function Calendar({
                     🏨 予約 {reservationsByDate[ds].length}件
                   </div>
                 )}
+                {cafeHoursByDate[ds] && (
+                  <div className="cal-reservations cal-cafe-hours">
+                    {cafeHoursByDate[ds].closed
+                      ? "☕ LOCOMO CAFE 定休日"
+                      : `☕ ${cafeHoursByDate[ds].openTime}–${cafeHoursByDate[ds].closeTime}`}
+                  </div>
+                )}
                 <div className="cal-events">
                   {dayEvents.slice(0, 3).map((e) => (
                     <div
@@ -525,12 +546,14 @@ function DayPanel({
   );
   const [requestTo, setRequestTo] = useState<User | null>(null);
   const [requestingEvent, setRequestingEvent] = useState<ScheduleEvent | null>(null);
+  const [editingCafeHours, setEditingCafeHours] = useState<CafeHours | null>(null);
   const availList = availabilityOn(date).filter((a) =>
     users.some((u) => u.id === a.userId && u.role === "member")
   );
   const dayReservations = reservationsOn(date);
   const dayRequests = requestsOn(date);
   const members = users.filter((u) => u.role === "member");
+  const dayCafeHours = cafeHoursOn(date);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -588,6 +611,58 @@ function DayPanel({
             </div>
           </div>
         )}
+
+        {/* LOCOMO CAFEの営業時間 */}
+        <div className="avail-box">
+          <strong>☕ LOCOMO CAFE</strong>
+          {editingCafeHours ? (
+            <CafeHoursForm
+              value={editingCafeHours}
+              onCancel={() => setEditingCafeHours(null)}
+              onSave={(c) => {
+                upsertCafeHours(c);
+                setEditingCafeHours(null);
+                onChange();
+              }}
+            />
+          ) : dayCafeHours ? (
+            <div className="reservation-item">
+              <div className="reservation-meta">
+                {dayCafeHours.closed
+                  ? "定休日"
+                  : `営業時間 ${dayCafeHours.openTime}〜${dayCafeHours.closeTime}`}
+              </div>
+              {dayCafeHours.note && <div className="event-note">{dayCafeHours.note}</div>}
+              {me.role === "owner" && (
+                <div className="event-actions">
+                  <button className="ghost" onClick={() => setEditingCafeHours(dayCafeHours)}>
+                    編集
+                  </button>
+                  <button
+                    className="ghost danger"
+                    onClick={() => {
+                      if (confirm("LOCOMO CAFEのこの日の営業時間を削除しますか？")) {
+                        deleteCafeHours(dayCafeHours.id);
+                        onChange();
+                      }
+                    }}
+                  >
+                    削除
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : me.role === "owner" ? (
+            <button
+              className="ghost mini"
+              onClick={() => setEditingCafeHours(newCafeHours(date))}
+            >
+              ＋ 営業時間を設定
+            </button>
+          ) : (
+            <span className="muted">未設定</span>
+          )}
+        </div>
 
         {me.role === "owner" && (
           <div className="avail-box">
@@ -773,6 +848,73 @@ function DayPanel({
 }
 
 // 人数の内訳を「大人2・就学児1」のように短くまとめる
+// LOCOMO CAFEの営業時間を入力するフォーム（休業日はチェックで開閉時間を隠す）
+function CafeHoursForm({
+  value,
+  onCancel,
+  onSave,
+}: {
+  value: CafeHours;
+  onCancel: () => void;
+  onSave: (c: CafeHours) => void;
+}) {
+  const [draft, setDraft] = useState<CafeHours>(value);
+  function set<K extends keyof CafeHours>(key: K, val: CafeHours[K]) {
+    setDraft((d) => ({ ...d, [key]: val }));
+  }
+  function handleSave() {
+    if (!draft.closed && draft.closeTime <= draft.openTime) {
+      return alert("閉店時間は開店時間より後にしてください");
+    }
+    onSave(draft);
+  }
+  return (
+    <div className="event-form">
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={draft.closed}
+          onChange={(e) => set("closed", e.target.checked)}
+        />
+        定休日（営業しない）
+      </label>
+      {!draft.closed && (
+        <div className="row">
+          <label>
+            開店時間
+            <select value={draft.openTime} onChange={(e) => set("openTime", e.target.value)}>
+              {TIME_SLOTS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            閉店時間
+            <select value={draft.closeTime} onChange={(e) => set("closeTime", e.target.value)}>
+              {TIME_SLOTS.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
+      <label>
+        メモ（オプション・任意）
+        <textarea
+          value={draft.note}
+          onChange={(e) => set("note", e.target.value)}
+          rows={2}
+          placeholder="例: 貸切営業 / 臨時休業の理由など"
+        />
+      </label>
+      <div className="form-actions">
+        <button className="ghost" onClick={onCancel}>キャンセル</button>
+        <button className="primary" onClick={handleSave}>保存</button>
+      </div>
+    </div>
+  );
+}
+
 function guestSummary(r: Reservation): string {
   const parts: string[] = [];
   if (r.adults) parts.push(`大人${r.adults}`);

@@ -21,6 +21,7 @@ create table profiles (
   name text not null,
   role text not null default 'member',        -- owner / member
   hourly_rate integer not null default 0,
+  receipt_name text,
   postal_code text, address text, phone text, email text,
   stamp_text text, stamp_shape text, stamp_orientation text, stamp_font text,
   created_at timestamptz default now()
@@ -124,6 +125,7 @@ create table event_approvals (
   org_id uuid not null references organizations(id) on delete cascade,
   event_id text not null, user_id text not null,
   hours real default 0, amount integer default 0, note text,
+  work_amount integer, expense integer, extra_items jsonb,
   status text default 'requested', requested_at text, approved_at text
 );
 
@@ -180,6 +182,18 @@ create table reservations (
   unique (org_id, neppan_booking_id)
 );
 
+-- LOCOMO CAFEの営業時間（1日1件。休業日は closed=true で記録）
+create table cafe_hours (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  date text not null,
+  closed boolean not null default false,
+  open_time text default '09:00',
+  close_time text default '17:00',
+  note text default '',
+  unique (org_id, date)
+);
+
 -- 解析できなかった予約通知メール（書式変更の検知・後から手動対応するため保存）
 create table reservation_mail_errors (
   id uuid primary key default gen_random_uuid(),
@@ -225,5 +239,11 @@ create policy res_sel on reservations for select using (org_id = auth_org_id());
 create policy res_ins on reservations for insert with check (org_id = auth_org_id());
 create policy res_upd on reservations for update using (org_id = auth_org_id()) with check (org_id = auth_org_id());
 create policy res_del on reservations for delete using (org_id = auth_org_id());
+
+alter table cafe_hours enable row level security;
+create policy cafe_sel on cafe_hours for select using (org_id = auth_org_id());
+create policy cafe_ins on cafe_hours for insert with check (org_id = auth_org_id());
+create policy cafe_upd on cafe_hours for update using (org_id = auth_org_id()) with check (org_id = auth_org_id());
+create policy cafe_del on cafe_hours for delete using (org_id = auth_org_id());
 
 NOTIFY pgrst, 'reload schema';

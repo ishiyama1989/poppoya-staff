@@ -3,6 +3,7 @@ import type {
   AppRequest,
   AttendanceAlert,
   Availability,
+  CafeHours,
   ChecklistItem,
   CommentTemplate,
   EventApproval,
@@ -14,6 +15,7 @@ import type {
   TimeClock,
   User,
 } from '../types'
+import { DEFAULT_CAFE_OPEN_TIME, DEFAULT_CAFE_CLOSE_TIME } from '../types'
 
 export const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL as string,
@@ -318,6 +320,24 @@ const fromDbReservation = (r: any): Reservation => ({
   status: r.status ?? 'confirmed',
 })
 
+const toDbCafeHours = (c: CafeHours) => ({
+  id: c.id,
+  date: c.date,
+  closed: c.closed,
+  open_time: c.openTime,
+  close_time: c.closeTime,
+  note: c.note,
+})
+
+const fromDbCafeHours = (c: any): CafeHours => ({
+  id: c.id,
+  date: c.date,
+  closed: c.closed ?? false,
+  openTime: c.open_time ?? DEFAULT_CAFE_OPEN_TIME,
+  closeTime: c.close_time ?? DEFAULT_CAFE_CLOSE_TIME,
+  note: c.note ?? '',
+})
+
 // プロフィール（= アプリの User）。SaaS版では users テーブルの代わりに profiles を使う。
 const toDbProfile = (u: User) => ({
   id: u.id,
@@ -360,8 +380,9 @@ const fromDbProfile = (r: any): User => ({
 export function syncProfiles(users: User[]): void {
   for (const u of users) {
     supabase.from("profiles").update(toDbProfile(u)).eq("id", u.id).then(
-      () => {},
-      () => {}
+      ({ error }) => {
+        if (error) console.error(`[sync] profiles(${u.name}) の保存に失敗しました:`, error.message)
+      }
     );
   }
 }
@@ -441,12 +462,17 @@ export function syncReservations(list: Reservation[]): void {
   upsertRows('reservations', list, toDbReservation, 'id').catch(() => {})
 }
 
+export function syncCafeHours(list: CafeHours[]): void {
+  upsertRows('cafe_hours', list, toDbCafeHours, 'id').catch(() => {})
+}
+
 // ---- SaaS版：ログイン中の組織のデータを読み込む（RLSで自組織のみ） ----
 export async function loadOrgData(): Promise<void> {
   const [
     profiles, events, avail, requests, pay, recipients,
     templates, approvals, reservations,
     timeClocks, checklistItems, handoverNotes, attendanceAlerts,
+    cafeHours,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
     supabase.from('schedule_events').select('*'),
@@ -461,6 +487,7 @@ export async function loadOrgData(): Promise<void> {
     supabase.from('shift_checklist_items').select('*'),
     supabase.from('handover_notes').select('*'),
     supabase.from('attendance_alerts').select('*'),
+    supabase.from('cafe_hours').select('*'),
   ])
   // 読み込みに失敗したテーブルは上書きせず前回の内容を残し、原因を記録する。
   // （黙って空にすると、画面上はデータが消えたようにしか見えないため）
@@ -488,6 +515,7 @@ export async function loadOrgData(): Promise<void> {
   put('sns_checklist_items', checklistItems, fromDbChecklistItem)
   put('sns_handover_notes', handoverNotes, fromDbHandoverNote)
   put('sns_attendance_alerts', attendanceAlerts, fromDbAttendanceAlert)
+  put('sns_cafe_hours', cafeHours, fromDbCafeHours)
 }
 
 // ---- Hydration: Supabase → localStorage on app start（旧・単一テナント用。SaaS版では未使用） ----
