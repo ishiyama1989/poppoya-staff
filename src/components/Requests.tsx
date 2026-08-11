@@ -46,7 +46,8 @@ export default function Requests({ me }: { me: User }) {
               </div>
               <div className="req-card-title">{r.title}</div>
               <div className="req-card-meta">
-                🕒 {r.start}–{r.end} ／ 📍 {r.location || "未設定"}
+                🕒 {r.start}–{r.end}
+                {r.location ? ` ／ 📍 ${r.location}` : ""}
               </div>
               {r.location && (
                 <div className="req-card-meta">

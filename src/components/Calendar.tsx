@@ -1345,10 +1345,10 @@ function RequestForm({
   onSent: () => void;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedIds);
-  // 画面からは部屋の選択をなくしたが、type列自体はDB上必須のため固定値で送る
+  // 画面からは部屋の選択・場所欄をなくしたが、type/location列自体はDB上必須のため固定値で送る
   const type: EventType = "train";
+  const location = "";
   const [title, setTitle] = useState("この日シフトに入れませんか？");
-  const [location, setLocation] = useState("");
   const [start, setStart] = useState("10:00");
   const [end, setEnd] = useState("");
   const [note, setNote] = useState("");
@@ -1415,15 +1415,6 @@ function RequestForm({
           placeholder="例: この日シフトに入れませんか？"
         />
       </label>
-      <label>
-        場所（任意）
-        <input
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          placeholder="フロント / 客室 など"
-        />
-        <MapLinks query={location} />
-      </label>
       <div className="row">
         <label>
           開始
@@ -1469,8 +1460,9 @@ function BulkShiftForm({
 }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
-  const [type, setType] = useState<EventType>("train");
-  const [location, setLocation] = useState("");
+  // 画面から種別選択・場所欄をなくしたが、type/location列自体はDB上必須のため固定値で送る
+  const type: EventType = "train";
+  const location = "";
   const [start, setStart] = useState("10:00");
   const [end, setEnd] = useState("");
 
@@ -1493,11 +1485,10 @@ function BulkShiftForm({
     sendPushToUsers(
       memberIds,
       "新しい予定が登録されました",
-      `${dates.length}日ぶんのシフトが登録されました：${TYPE_JP[type] ?? ""}「${title.trim()}」`,
+      `${dates.length}日ぶんのシフトが登録されました：「${title.trim()}」`,
       "/"
     );
     setTitle("");
-    setLocation("");
     setOpen(false);
     onDone();
   }
@@ -1520,23 +1511,6 @@ function BulkShiftForm({
               placeholder="例: 客室清掃シフト"
             />
           </label>
-          <div className="row">
-            <label>
-              種別
-              <select value={type} onChange={(e) => setType(e.target.value as EventType)}>
-                <option value="train">トレインルーム</option>
-                <option value="retro">レトロルーム</option>
-              </select>
-            </label>
-            <label>
-              場所
-              <input
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                placeholder="任意"
-              />
-            </label>
-          </div>
           <div className="row">
             <label>
               開始

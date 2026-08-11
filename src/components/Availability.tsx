@@ -186,7 +186,7 @@ function SlotEditor({
             rows={3}
             value={comment}
             onChange={(e) => setComment(e.target.value)}
-            placeholder="例: 17時以降なら撮影OK / オンラインのみ可 など"
+            placeholder="例: 13時以降なら可能です。"
           />
         </label>
 
