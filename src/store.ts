@@ -793,6 +793,7 @@ export function newManualReservation(date: string): Reservation {
     adults: 1,
     children: 0,
     infants: 0,
+    pastStayCount: 0,
     note: "",
     status: "confirmed",
   };

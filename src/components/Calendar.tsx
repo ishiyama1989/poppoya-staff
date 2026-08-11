@@ -8,25 +8,23 @@ import {
   RESERVATION_SOURCE_LABEL,
   ROOM_TYPES,
   GUEST_COUNT_OPTIONS,
+  STAY_COUNT_OPTIONS,
   CHECKIN_TIME_OPTIONS,
   SLOT_LABEL,
   type CafeHours,
   type ChecklistItem,
   type EventType,
-  type HandoverNote,
   type Reservation,
   type ScheduleEvent,
   type User,
 } from "../types";
 import {
   addChecklistItem,
-  addHandoverNote,
   addRequest,
   approveRequest,
   availabilityOn,
   deleteChecklistItem,
   deleteEvent,
-  deleteHandoverNote,
   getAvailability,
   getChecklistItems,
   getEvents,
@@ -40,7 +38,6 @@ import {
   deleteCafeHours,
   getUnseenAssignedEvents,
   getUsers,
-  handoverNotesOn,
   markAssignedEventsSeen,
   pendingEventApprovalsForUser,
   pendingRequestsForUser,
@@ -74,6 +71,11 @@ const TYPE_JP: Record<string, string> = {
 const ROOM_TYPE_COLOR: Record<string, string> = {
   トレインルーム: EVENT_TYPE_COLOR.train,
   レトロルーム: EVENT_TYPE_COLOR.retro,
+};
+
+const ROOM_TYPE_ICON: Record<string, string> = {
+  トレインルーム: "🚂",
+  レトロルーム: "📺",
 };
 
 // 時間プルダウン用スロット（30分刻み）
@@ -480,7 +482,7 @@ export default function Calendar({
                       style={{ color: ROOM_TYPE_COLOR[room], background: `${ROOM_TYPE_COLOR[room]}1a` }}
                       title={list.map((r) => r.guestName || "予約").join("、")}
                     >
-                      🏨 {room} {list.length}件
+                      {ROOM_TYPE_ICON[room]} {room} {list.length}件
                     </div>
                   );
                 })}
@@ -574,8 +576,6 @@ function DayPanel({
           <h3>{date.replace(/-/g, "/")}</h3>
           <button className="ghost" onClick={onClose}>✕</button>
         </div>
-
-        <HandoverNotes date={date} me={me} users={users} />
 
         {dayReservations.length > 0 && (
           <div className="avail-box">
@@ -929,6 +929,7 @@ function guestSummary(r: Reservation): string {
   if (r.adults) parts.push(`大人${r.adults}`);
   if (r.children) parts.push(`就学児${r.children}`);
   if (r.infants) parts.push(`幼児${r.infants}`);
+  parts.push(r.pastStayCount > 0 ? `過去${r.pastStayCount}回宿泊` : "初めてのご宿泊");
   return parts.length > 0 ? parts.join("・") : "人数未設定";
 }
 
@@ -1031,6 +1032,18 @@ function ReservationForm({
           onChange={(e) => set("address", e.target.value)}
           placeholder="例: 東京都渋谷区○○ 1-2-3"
         />
+      </label>
+
+      <label>
+        過去の宿泊回数
+        <select
+          value={draft.pastStayCount}
+          onChange={(e) => set("pastStayCount", Number(e.target.value))}
+        >
+          {STAY_COUNT_OPTIONS.map((n) => (
+            <option key={n} value={n}>{n === 10 ? "10回以上" : `${n}回`}</option>
+          ))}
+        </select>
       </label>
 
       <div className="row">
@@ -1622,80 +1635,6 @@ function EventChecklist({ eventId }: { eventId: string }) {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-// 日付ごとの申し送り・引き継ぎメモ（全員が閲覧・追加できる）
-function HandoverNotes({
-  date,
-  me,
-  users,
-}: {
-  date: string;
-  me: User;
-  users: User[];
-}) {
-  const [notes, setNotes] = useState<HandoverNote[]>(() => handoverNotesOn(date));
-  const [text, setText] = useState("");
-
-  function refresh() {
-    setNotes(handoverNotesOn(date));
-  }
-
-  function add() {
-    if (!text.trim()) return;
-    addHandoverNote(date, me.id, text);
-    setText("");
-    refresh();
-  }
-
-  return (
-    <div className="handover-box">
-      <strong>申し送り・引き継ぎメモ</strong>
-      <div className="handover-list">
-        {notes.length === 0 && <span className="muted small">まだメモはありません</span>}
-        {notes.map((n) => {
-          const author = users.find((u) => u.id === n.userId)?.name ?? "?";
-          const time = new Date(n.createdAt).toLocaleString("ja-JP", {
-            month: "numeric",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-          return (
-            <div key={n.id} className="handover-item">
-              <span className="handover-text">{n.text}</span>
-              <span className="handover-meta">
-                {author} ・ {time}
-                {n.userId === me.id && (
-                  <button
-                    type="button"
-                    className="handover-del"
-                    onClick={() => {
-                      deleteHandoverNote(n.id);
-                      refresh();
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      <div className="handover-add">
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="例: 203号室の布団、明日交換予定です"
-          rows={2}
-        />
-        <button type="button" className="primary mini" onClick={add}>
-          追加
-        </button>
-      </div>
     </div>
   );
 }

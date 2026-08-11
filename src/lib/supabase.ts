@@ -299,6 +299,7 @@ const toDbReservation = (r: Reservation) => ({
   adults: r.adults,
   children: r.children,
   infants: r.infants,
+  past_stay_count: r.pastStayCount,
   note: r.note,
   status: r.status,
 })
@@ -316,6 +317,7 @@ const fromDbReservation = (r: any): Reservation => ({
   adults: r.adults ?? 0,
   children: r.children ?? 0,
   infants: r.infants ?? 0,
+  pastStayCount: r.past_stay_count ?? 0,
   note: r.note ?? '',
   status: r.status ?? 'confirmed',
 })

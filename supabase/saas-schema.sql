@@ -177,6 +177,7 @@ create table reservations (
   room_type text default '', guest_name text default '',
   address text default '',
   adults integer default 0, children integer default 0, infants integer default 0,
+  past_stay_count integer default 0,
   note text default '',
   status text not null default 'confirmed', synced_at timestamptz default now(),
   unique (org_id, neppan_booking_id)
