@@ -129,11 +129,11 @@ export default function Calendar({
   }, [availByDateIds, searchSelected]);
 
   const pending = useMemo(
-    () => (me.role === "member" ? pendingRequestsForUser(me.id) : []),
+    () => (me.role !== "owner" ? pendingRequestsForUser(me.id) : []),
     [version, me]
   );
   const pendingPay = useMemo(
-    () => (me.role === "member" ? pendingEventApprovalsForUser(me.id) : []),
+    () => (me.role !== "owner" ? pendingEventApprovalsForUser(me.id) : []),
     [version, me]
   );
   // オーナー：過ぎた予定で承認依頼を送るべきもの
@@ -141,9 +141,9 @@ export default function Calendar({
     () => (me.role === "owner" ? eventsAwaitingAdmin() : []),
     [version, me]
   );
-  // メンバー：自分に割り当てられた新しい予定（未確認）
+  // メンバー・カフェ管理人：自分に割り当てられた新しい予定（未確認）
   const unseenEvents = useMemo(
-    () => (me.role === "member" ? getUnseenAssignedEvents(me.id) : []),
+    () => (me.role !== "owner" ? getUnseenAssignedEvents(me.id) : []),
     [version, me]
   );
 
@@ -190,7 +190,7 @@ export default function Calendar({
 
   const availNamesByDate = useMemo(() => {
     const nameById: Record<string, string> = {};
-    for (const u of users) if (u.role === "member") nameById[u.id] = u.name;
+    for (const u of users) if (u.role !== "owner") nameById[u.id] = u.name;
     const map: Record<string, { name: string; slots: string[] }[]> = {};
     for (const a of getAvailability())
       if ((a.slots.length > 0 || a.comment) && nameById[a.userId])
@@ -294,10 +294,7 @@ export default function Calendar({
             {pending.map((r) => (
               <div key={r.id} className="banner-req-row">
                 <div className="banner-req-info">
-                  <span className="banner-req-main">
-                    <span className="tag">{EVENT_TYPE_LABEL[r.type]}</span>
-                    {r.title}
-                  </span>
+                  <span className="banner-req-main">{r.title}</span>
                   <span className="banner-req-sub">
                     {r.date.slice(5).replace("-", "/")} {r.start}–{r.end || "未定"}
                     {r.location ? ` / ${r.location}` : ""}
@@ -747,7 +744,7 @@ function DayPanel({
         <div className="event-list">
           {events.length === 0 && <p className="muted">予定はありません</p>}
           {events.map((e) => {
-            const isMyEvent = me.role === "member" && e.assigneeIds.includes(me.id);
+            const isMyEvent = me.role !== "owner" && e.assigneeIds.includes(me.id);
             const coAssignees = isMyEvent
               ? e.assigneeIds
                   .filter((id) => id !== me.id)
@@ -1193,7 +1190,7 @@ function EventForm({
   onSave: (e: ScheduleEvent) => void;
 }) {
   const [draft, setDraft] = useState<ScheduleEvent>(value);
-  const members = users.filter((u) => u.role === "member");
+  const members = users.filter((u) => u.role !== "owner");
 
   function set<K extends keyof ScheduleEvent>(key: K, val: ScheduleEvent[K]) {
     setDraft((d) => ({ ...d, [key]: val }));
