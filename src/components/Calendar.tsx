@@ -542,7 +542,7 @@ function DayPanel({
   const [editingReservation, setEditingReservation] = useState<Reservation>(() =>
     newManualReservation(date)
   );
-  const [requestTo, setRequestTo] = useState<User | null>(null);
+  const [requestFormIds, setRequestFormIds] = useState<string[] | null>(null);
   const [requestingEvent, setRequestingEvent] = useState<ScheduleEvent | null>(null);
   const [editingCafeHours, setEditingCafeHours] = useState<CafeHours | null>(null);
   const availList = availabilityOn(date).filter((a) =>
@@ -679,7 +679,7 @@ function DayPanel({
                       {member && (
                         <button
                           className="ghost mini req-btn"
-                          onClick={() => setRequestTo(member)}
+                          onClick={() => setRequestFormIds([member.id])}
                         >
                           依頼する
                         </button>
@@ -689,17 +689,26 @@ function DayPanel({
                 })
               )}
             </div>
+            {members.length > 0 && !requestFormIds && (
+              <button
+                className="ghost mini"
+                onClick={() => setRequestFormIds([])}
+              >
+                ＋ シフトの依頼を送る
+              </button>
+            )}
           </div>
         )}
 
-        {me.role === "owner" && requestTo && (
+        {me.role === "owner" && requestFormIds && (
           <RequestForm
             date={date}
             fromUserId={me.id}
-            toUser={requestTo}
-            onCancel={() => setRequestTo(null)}
+            members={members}
+            initialSelectedIds={requestFormIds}
+            onCancel={() => setRequestFormIds(null)}
             onSent={() => {
-              setRequestTo(null);
+              setRequestFormIds(null);
               onChange();
             }}
           />
@@ -1296,38 +1305,52 @@ function EventForm({
 function RequestForm({
   date,
   fromUserId,
-  toUser,
+  members,
+  initialSelectedIds,
   onCancel,
   onSent,
 }: {
   date: string;
   fromUserId: string;
-  toUser: User;
+  members: User[];
+  initialSelectedIds: string[];
   onCancel: () => void;
   onSent: () => void;
 }) {
+  const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedIds);
   const [type, setType] = useState<EventType>("train");
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState("この日シフトに入れませんか？");
   const [location, setLocation] = useState("");
   const [start, setStart] = useState("10:00");
   const [end, setEnd] = useState("");
   const [note, setNote] = useState("");
 
+  const allSelected = members.length > 0 && selectedIds.length === members.length;
+  function toggleMember(id: string) {
+    setSelectedIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  }
+  function toggleAll() {
+    setSelectedIds(allSelected ? [] : members.map((m) => m.id));
+  }
+
   function send() {
+    if (selectedIds.length === 0) return alert("送信先を選択してください");
     if (!title.trim()) return alert("依頼内容を入力してください");
-    addRequest({
-      date,
-      fromUserId,
-      toUserId: toUser.id,
-      type,
-      title: title.trim(),
-      location,
-      start,
-      end,
-      note,
-    });
+    for (const toUserId of selectedIds) {
+      addRequest({
+        date,
+        fromUserId,
+        toUserId,
+        type,
+        title: title.trim(),
+        location,
+        start,
+        end,
+        note,
+      });
+    }
     sendPushToUsers(
-      [toUser.id],
+      selectedIds,
       "新しい依頼が届きました",
       `${date.slice(5).replace("-", "/")} ${start}〜${end || "未定"}　${TYPE_JP[type] ?? ""}「${title.trim()}」`,
       "/"
@@ -1337,31 +1360,48 @@ function RequestForm({
 
   return (
     <div className="event-form req-form">
-      <div className="req-form-head">
-        <strong>{toUser.name}</strong> さんへ依頼
-      </div>
+      <div className="req-form-head">シフトの依頼を送る</div>
+      <label>
+        送信先
+        <div className="search-chips">
+          {members.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              className={`pick ${selectedIds.includes(m.id) ? "on" : ""}`}
+              onClick={() => toggleMember(m.id)}
+            >
+              {m.name}
+            </button>
+          ))}
+          <button type="button" className={`pick ${allSelected ? "on" : ""}`} onClick={toggleAll}>
+            全員
+          </button>
+        </div>
+      </label>
       <label>
         依頼内容
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="例: カフェ案件の撮影をお願いします"
+          placeholder="例: この日シフトに入れませんか？"
         />
       </label>
       <div className="row">
         <label>
-          種別
+          場所
           <select value={type} onChange={(e) => setType(e.target.value as EventType)}>
-            <option value="train">トレインルーム</option>
-            <option value="retro">レトロルーム</option>
+            {EVENT_TYPES.map((t) => (
+              <option key={t} value={t}>{EVENT_TYPE_LABEL[t]}</option>
+            ))}
           </select>
         </label>
         <label>
-          場所
+          詳細な場所（任意）
           <input
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            placeholder="渋谷スタジオ / 住所など"
+            placeholder="フロント / 客室 など"
           />
           <MapLinks query={location} />
         </label>
