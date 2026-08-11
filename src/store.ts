@@ -11,6 +11,7 @@ import type {
   Recipient,
   RecipientType,
   Reservation,
+  Role,
   ScheduleEvent,
   TimeClock,
   User,
@@ -109,8 +110,9 @@ export function saveUsers(users: User[]): void {
   syncProfiles(users); // SaaS版：profiles テーブルを更新
 }
 
+// オーナー以外の全スタッフ（メンバー・カフェ管理人）
 export function getMembers(): User[] {
-  return getUsers().filter((u) => u.role === "member");
+  return getUsers().filter((u) => u.role !== "owner");
 }
 
 export function registerUser(input: {
@@ -213,11 +215,11 @@ export function updateHourlyRate(userId: string, rate: number): void {
 
 export function updateUser(
   userId: string,
-  fields: { name: string; hourlyRate: number; password?: string }
+  fields: { name: string; hourlyRate: number; role?: Role; password?: string }
 ): { ok: true } | { ok: false; error: string } {
   const users = getUsers();
-  if (!users.some((u) => u.id === userId))
-    return { ok: false, error: "ユーザーが見つかりません" };
+  const target = users.find((u) => u.id === userId);
+  if (!target) return { ok: false, error: "ユーザーが見つかりません" };
   const name = fields.name.trim();
   if (!name) return { ok: false, error: "名前を入力してください" };
   if (users.some((u) => u.id !== userId && u.name === name))
@@ -230,6 +232,8 @@ export function updateUser(
             ...u,
             name,
             hourlyRate: fields.hourlyRate,
+            // オーナーの役割は変更させない（getMembers()の対象外のため、この関数からは通常渡らない）
+            role: fields.role && u.role !== "owner" ? fields.role : u.role,
             password: fields.password ? fields.password : u.password,
           }
         : u

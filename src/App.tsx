@@ -4,7 +4,7 @@ import {
   Calendar as CalendarIcon, Clock, Inbox, Banknote, Settings,
   Users, BarChart2, LogOut, ClipboardList, History, Timer, type LucideIcon,
 } from "lucide-react";
-import type { User } from "./types";
+import { ROLE_LABEL, type User } from "./types";
 import {
   countAwaitingAdmin,
   pendingEventApprovalsForUser,
@@ -105,7 +105,7 @@ export default function App({
         <div className="topbar-right">
           <span className="user-badge">
             {user.name}
-            <span className={`role ${user.role}`}>{isOwner ? "管理者" : "メンバー"}</span>
+            <span className={`role ${user.role}`}>{ROLE_LABEL[user.role]}</span>
           </span>
           <button className="ghost" onClick={onLogout}>
             <LogOut size={13} strokeWidth={2} />

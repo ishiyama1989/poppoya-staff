@@ -1,6 +1,13 @@
 // アプリ全体で使うデータ型の定義（プロトタイプ）
 
-export type Role = "owner" | "member";
+// cafe_manager はメンバーとほぼ同じ権限だが、LOCOMO CAFEの営業時間を追加・編集できる
+export type Role = "owner" | "member" | "cafe_manager";
+
+export const ROLE_LABEL: Record<Role, string> = {
+  owner: "管理者",
+  member: "メンバー",
+  cafe_manager: "カフェ管理人",
+};
 
 // デジタル印影（領収書に使用）
 export type StampShape = "circle" | "square";

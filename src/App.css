@@ -277,6 +277,11 @@ label input, label select, label textarea { margin-top: 6px; font-weight: 400; }
   color: var(--muted);
   border: 1px solid var(--line);
 }
+.role.cafe_manager {
+  background: rgba(18,184,134,0.10);
+  color: #0d9668;
+  border: 1px solid rgba(18,184,134,0.22);
+}
 .topbar .ghost {
   color: var(--text-2);
   border-color: var(--line);

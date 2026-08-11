@@ -546,12 +546,14 @@ function DayPanel({
   const [requestingEvent, setRequestingEvent] = useState<ScheduleEvent | null>(null);
   const [editingCafeHours, setEditingCafeHours] = useState<CafeHours | null>(null);
   const availList = availabilityOn(date).filter((a) =>
-    users.some((u) => u.id === a.userId && u.role === "member")
+    users.some((u) => u.id === a.userId && u.role !== "owner")
   );
   const dayReservations = reservationsOn(date);
   const dayRequests = requestsOn(date);
-  const members = users.filter((u) => u.role === "member");
+  const members = users.filter((u) => u.role !== "owner");
   const dayCafeHours = cafeHoursOn(date);
+  // カフェ管理人はメンバーとほぼ同じ権限だが、LOCOMO CAFEの営業時間だけ追加・編集できる
+  const canManageCafe = me.role === "owner" || me.role === "cafe_manager";
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -629,7 +631,7 @@ function DayPanel({
                 営業時間 {dayCafeHours.openTime}〜{dayCafeHours.closeTime}
               </div>
               {dayCafeHours.note && <div className="event-note">{dayCafeHours.note}</div>}
-              {me.role === "owner" && (
+              {canManageCafe && (
                 <div className="event-actions">
                   <button className="ghost" onClick={() => setEditingCafeHours(dayCafeHours)}>
                     編集
@@ -648,7 +650,7 @@ function DayPanel({
                 </div>
               )}
             </div>
-          ) : me.role === "owner" ? (
+          ) : canManageCafe ? (
             <button
               className="ghost mini"
               onClick={() => setEditingCafeHours(newCafeHours(date))}

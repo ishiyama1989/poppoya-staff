@@ -19,7 +19,7 @@ create table profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   org_id uuid not null references organizations(id) on delete cascade,
   name text not null,
-  role text not null default 'member',        -- owner / member
+  role text not null default 'member',        -- owner / member / cafe_manager
   hourly_rate integer not null default 0,
   receipt_name text,
   postal_code text, address text, phone text, email text,

@@ -5,7 +5,7 @@ export interface Profile {
   id: string; // = auth.users.id (uuid)
   orgId: string;
   name: string;
-  role: "owner" | "member";
+  role: "owner" | "member" | "cafe_manager";
   hourlyRate: number;
   receiptName?: string;
   postalCode?: string;

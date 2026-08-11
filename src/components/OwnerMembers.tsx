@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { getMembers, updateUser } from "../store";
-import type { User } from "../types";
+import { ROLE_LABEL, type Role, type User } from "../types";
 
 // オーナーがメンバーを編集する画面
 export default function OwnerMembers() {
@@ -32,6 +32,7 @@ export default function OwnerMembers() {
           <thead>
             <tr>
               <th>名前</th>
+              <th>役割</th>
               <th>時給</th>
               <th>操作</th>
             </tr>
@@ -40,6 +41,7 @@ export default function OwnerMembers() {
             {members.map((m) => (
               <tr key={m.id}>
                 <td>{m.name}</td>
+                <td>{ROLE_LABEL[m.role]}</td>
                 <td>¥{m.hourlyRate.toLocaleString("ja-JP")}</td>
                 <td>
                   <button className="ghost" onClick={() => setEditing(m)}>
@@ -76,12 +78,14 @@ function UserEditor({
   onSaved: () => void;
 }) {
   const [name, setName] = useState(user.name);
+  const [role, setRole] = useState<Role>(user.role);
   const [rate, setRate] = useState(String(user.hourlyRate));
   const [error, setError] = useState("");
 
   function save() {
     const res = updateUser(user.id, {
       name,
+      role,
       hourlyRate: Number(rate) || 0,
     });
     if (!res.ok) return setError(res.error);
@@ -99,6 +103,13 @@ function UserEditor({
         <label>
           名前
           <input value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label>
+          役割
+          <select value={role} onChange={(e) => setRole(e.target.value as Role)}>
+            <option value="member">メンバー</option>
+            <option value="cafe_manager">カフェ管理人（LOCOMO CAFEの営業時間を編集可）</option>
+          </select>
         </label>
         <label>
           時給（円）
