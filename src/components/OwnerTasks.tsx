@@ -74,7 +74,6 @@ export default function OwnerTasks({ me }: { me: User }) {
               <div key={r.id} className="req-card">
                 <div className="req-card-head">
                   <span className="req-date">{r.date.replace(/-/g, "/")}</span>
-                  <span className="tag">{EVENT_TYPE_LABEL[r.type]}</span>
                 </div>
                 <div className="req-card-title">{r.title}</div>
                 <div className="req-card-meta">

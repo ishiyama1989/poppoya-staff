@@ -70,6 +70,12 @@ const TYPE_JP: Record<string, string> = {
   other: "予定",
 };
 
+// 予約の部屋名 → カレンダー凡例と同じ色（トレイン=青 / レトロ=オレンジ）
+const ROOM_TYPE_COLOR: Record<string, string> = {
+  トレインルーム: EVENT_TYPE_COLOR.train,
+  レトロルーム: EVENT_TYPE_COLOR.retro,
+};
+
 // 時間プルダウン用スロット（30分刻み）
 const TIME_SLOTS: string[] = [];
 for (let h = 0; h < 24; h++) {
@@ -464,14 +470,20 @@ export default function Calendar({
                     )}
                   </div>
                 )}
-                {reservationsByDate[ds] && reservationsByDate[ds].length > 0 && (
-                  <div
-                    className="cal-reservations"
-                    title={reservationsByDate[ds].map((r) => r.guestName || "予約").join("、")}
-                  >
-                    🏨 予約 {reservationsByDate[ds].length}件
-                  </div>
-                )}
+                {ROOM_TYPES.map((room) => {
+                  const list = (reservationsByDate[ds] ?? []).filter((r) => r.roomType === room);
+                  if (list.length === 0) return null;
+                  return (
+                    <div
+                      key={room}
+                      className="cal-reservations"
+                      style={{ color: ROOM_TYPE_COLOR[room], background: `${ROOM_TYPE_COLOR[room]}1a` }}
+                      title={list.map((r) => r.guestName || "予約").join("、")}
+                    >
+                      🏨 {room} {list.length}件
+                    </div>
+                  );
+                })}
                 {cafeHoursByDate[ds] && (
                   <div className="cal-reservations cal-cafe-hours">
                     ☕ {cafeHoursByDate[ds].openTime}–{cafeHoursByDate[ds].closeTime}
@@ -1320,7 +1332,8 @@ function RequestForm({
   onSent: () => void;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedIds);
-  const [type, setType] = useState<EventType>("train");
+  // 画面からは部屋の選択をなくしたが、type列自体はDB上必須のため固定値で送る
+  const type: EventType = "train";
   const [title, setTitle] = useState("この日シフトに入れませんか？");
   const [location, setLocation] = useState("");
   const [start, setStart] = useState("10:00");
@@ -1354,7 +1367,7 @@ function RequestForm({
     sendPushToUsers(
       selectedIds,
       "新しい依頼が届きました",
-      `${date.slice(5).replace("-", "/")} ${start}〜${end || "未定"}　${TYPE_JP[type] ?? ""}「${title.trim()}」`,
+      `${date.slice(5).replace("-", "/")} ${start}〜${end || "未定"}　「${title.trim()}」`,
       "/"
     );
     onSent();
@@ -1389,25 +1402,15 @@ function RequestForm({
           placeholder="例: この日シフトに入れませんか？"
         />
       </label>
-      <div className="row">
-        <label>
-          場所
-          <select value={type} onChange={(e) => setType(e.target.value as EventType)}>
-            {EVENT_TYPES.map((t) => (
-              <option key={t} value={t}>{EVENT_TYPE_LABEL[t]}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          詳細な場所（任意）
-          <input
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            placeholder="フロント / 客室 など"
-          />
-          <MapLinks query={location} />
-        </label>
-      </div>
+      <label>
+        場所（任意）
+        <input
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          placeholder="フロント / 客室 など"
+        />
+        <MapLinks query={location} />
+      </label>
       <div className="row">
         <label>
           開始
