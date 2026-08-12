@@ -851,8 +851,8 @@ function DayPanel({
               key={editingReservation.id}
               value={editingReservation}
               onCancel={() => setEditingReservation(newManualReservation(date))}
-              onSave={(r) => {
-                upsertReservation(r);
+              onSave={(rs) => {
+                rs.forEach(upsertReservation);
                 setEditingReservation(newManualReservation(date));
                 onChange();
               }}
@@ -939,12 +939,24 @@ function ReservationForm({
 }: {
   value: Reservation;
   onCancel: () => void;
-  onSave: (r: Reservation) => void;
+  onSave: (rs: Reservation[]) => void;
 }) {
   const [draft, setDraft] = useState<Reservation>(value);
+  // 同じお客様がトレインルーム・レトロルームを両方申し込むことがあるため複数選択可
+  const [selectedRooms, setSelectedRooms] = useState<string[]>([value.roomType]);
 
   function set<K extends keyof Reservation>(key: K, val: Reservation[K]) {
     setDraft((d) => ({ ...d, [key]: val }));
+  }
+
+  function toggleRoom(room: string) {
+    setSelectedRooms((cur) => {
+      if (cur.includes(room)) {
+        if (cur.length === 1) return cur; // 最低1部屋は選択された状態を保つ
+        return cur.filter((r) => r !== room);
+      }
+      return [...cur, room];
+    });
   }
 
   function handleSave() {
@@ -952,30 +964,40 @@ function ReservationForm({
     if (draft.checkoutDate <= draft.checkinDate)
       return alert("チェックアウト日はチェックイン日より後にしてください");
 
+    const guestName = draft.guestName.trim();
+    // 選択した部屋ごとに1件ずつ予約を作る。元の部屋はIDを維持し、追加分は新規発行する
+    const candidates: Reservation[] = selectedRooms.map((room) => {
+      if (room === draft.roomType) return { ...draft, guestName };
+      const key = `manual:${uid()}`;
+      return { ...draft, id: key, neppanBookingId: key, roomType: room, guestName };
+    });
+
     // 1室につき1日1組までなので、期間が重なる予約があれば登録させない
-    const conflict = findRoomConflict(draft);
-    if (conflict) {
-      return alert(
-        `${draft.roomType}はすでに埋まっています。\n` +
-          `${conflict.checkinDate.replace(/-/g, "/")}〜${conflict.checkoutDate.replace(/-/g, "/")}` +
-          `「${conflict.guestName || "ゲスト"}」様のご予約と重なっています。`
-      );
+    for (const r of candidates) {
+      const conflict = findRoomConflict(r);
+      if (conflict) {
+        return alert(
+          `${r.roomType}はすでに埋まっています。\n` +
+            `${conflict.checkinDate.replace(/-/g, "/")}〜${conflict.checkoutDate.replace(/-/g, "/")}` +
+            `「${conflict.guestName || "ゲスト"}」様のご予約と重なっています。`
+        );
+      }
     }
 
-    onSave({ ...draft, guestName: draft.guestName.trim() });
+    onSave(candidates);
   }
 
   return (
     <div className="event-form">
       <label>
-        部屋
+        部屋（複数選択可）
         <div className="shape-toggle">
           {ROOM_TYPES.map((room) => (
             <button
               key={room}
               type="button"
-              className={`type-btn ${draft.roomType === room ? "on" : ""}`}
-              onClick={() => set("roomType", room)}
+              className={`type-btn ${selectedRooms.includes(room) ? "on" : ""}`}
+              onClick={() => toggleRoom(room)}
             >
               {room}
             </button>
