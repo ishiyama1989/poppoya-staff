@@ -15,9 +15,9 @@ export default defineConfig({
       },
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icon.svg'],
       manifest: {
-        name: 'SNS Schedule',
-        short_name: 'SNS Schedule',
-        description: '運用代行チームの予定・稼働状況・支払いをひとつに',
+        name: '宿ぽっぽや',
+        short_name: '宿ぽっぽや',
+        description: '宿ぽっぽやのスタッフ管理ツール',
         theme_color: '#ff7a59',
         background_color: '#fff8ee',
         display: 'standalone',

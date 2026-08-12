@@ -20,7 +20,7 @@ self.addEventListener("push", (event) => {
   } catch {
     payload = { body: event.data?.text() };
   }
-  const title = payload.title ?? "SNS Schedule";
+  const title = payload.title ?? "宿ぽっぽや";
   const options: NotificationOptions = {
     body: payload.body ?? "",
     icon: "/icon-192.png",

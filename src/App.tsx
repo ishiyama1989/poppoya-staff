@@ -100,7 +100,7 @@ export default function App({
     <div className="app">
       <header className="topbar">
         <div className="topbar-left">
-          <span className="logo"><span className="logo-dot" />{orgName || "SNS Schedule"}</span>
+          <span className="logo"><span className="logo-dot" />{orgName || "宿ぽっぽや"}</span>
         </div>
         <div className="topbar-right">
           <span className="user-badge">
