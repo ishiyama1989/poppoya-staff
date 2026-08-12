@@ -22,6 +22,7 @@ import {
   ROOM_TYPES,
   DEFAULT_CAFE_OPEN_TIME,
   DEFAULT_CAFE_CLOSE_TIME,
+  MANUAL_RESERVATION_SOURCES,
 } from "./types";
 import { addDays } from "./lib/date";
 import { pinToAuthPassword } from "./lib/auth";
@@ -783,7 +784,7 @@ export function newManualReservation(date: string): Reservation {
   return {
     id: key,
     neppanBookingId: key,
-    source: "manual",
+    source: MANUAL_RESERVATION_SOURCES[0],
     checkinDate: date,
     checkoutDate: addDays(date, 1),
     checkinTime: DEFAULT_CHECKIN_TIME,

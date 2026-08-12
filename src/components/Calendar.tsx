@@ -6,6 +6,7 @@ import {
   EVENT_TYPES,
   REQUEST_STATUS_LABEL,
   RESERVATION_SOURCE_LABEL,
+  MANUAL_RESERVATION_SOURCES,
   ROOM_TYPES,
   GUEST_COUNT_OPTIONS,
   STAY_COUNT_OPTIONS,
@@ -980,6 +981,15 @@ function ReservationForm({
             </button>
           ))}
         </div>
+      </label>
+
+      <label>
+        予約元
+        <select value={draft.source} onChange={(e) => set("source", e.target.value)}>
+          {MANUAL_RESERVATION_SOURCES.map((s) => (
+            <option key={s} value={s}>{RESERVATION_SOURCE_LABEL[s]}</option>
+          ))}
+        </select>
       </label>
 
       <div className="row">

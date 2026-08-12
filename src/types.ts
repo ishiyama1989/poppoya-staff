@@ -267,13 +267,26 @@ export const DEFAULT_CHECKIN_TIME = "15:00";
 export const RESERVATION_SOURCE_LABEL: Record<string, string> = {
   manual: "手入力",
   neppan: "ねっぱん",
+  own_site: "自社サイト",
   rakuten: "楽天トラベル",
   jalan: "じゃらん",
   booking: "Booking.com",
   airbnb: "Airbnb",
-  ikyu: "一休",
+  ikyu: "一休.com",
+  expedia: "Expedia",
   other: "その他",
 };
+
+// 管理者が予約を手入力する際に選べる予約元（自動連携専用の neppan は含めない）
+export const MANUAL_RESERVATION_SOURCES = [
+  "own_site",
+  "rakuten",
+  "jalan",
+  "ikyu",
+  "airbnb",
+  "booking",
+  "expedia",
+] as const;
 
 // 出退勤打刻（1ユーザー・1日1レコード）
 export interface TimeClock {
