@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getMembers, updateUser } from "../store";
+import { deleteUser, getMembers, updateUser } from "../store";
 import { ROLE_LABEL, type Role, type User } from "../types";
 
 // オーナーがメンバーを編集する画面
@@ -46,6 +46,23 @@ export default function OwnerMembers() {
                 <td>
                   <button className="ghost" onClick={() => setEditing(m)}>
                     編集
+                  </button>
+                  <button
+                    className="ghost danger"
+                    onClick={() => {
+                      if (
+                        confirm(
+                          `「${m.name}」を削除しますか？\n` +
+                            `この操作は取り消せません。担当していた予定は残りますが、` +
+                            `依頼・稼働可能日・出退勤記録・報酬記録などのデータもあわせて削除されます。`
+                        )
+                      ) {
+                        deleteUser(m.id);
+                        refresh();
+                      }
+                    }}
+                  >
+                    削除
                   </button>
                 </td>
               </tr>

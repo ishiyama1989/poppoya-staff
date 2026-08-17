@@ -213,6 +213,11 @@ alter table profiles enable row level security;
 create policy prof_sel on profiles for select using (org_id = auth_org_id());
 create policy prof_ins on profiles for insert with check (id = auth.uid());
 create policy prof_upd on profiles for update using (id = auth.uid() or org_id = auth_org_id());
+-- メンバー削除はオーナーのみ（同じ組織内で、かつ自分がowner権限を持つ場合だけ許可）
+create policy prof_del on profiles for delete using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
+);
 
 -- データテーブル共通：org_id = 自組織 のみ
 do $$

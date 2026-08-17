@@ -243,23 +243,53 @@ export function updateUser(
   return { ok: true };
 }
 
+// メンバーを削除する。本人が関わるデータ（依頼・稼働可能日・報酬記録など）も
+// あわせて消す。予定（schedule_events）自体は残し、担当者からのみ外す。
 export function deleteUser(userId: string): void {
   write(KEYS.users, getUsers().filter((u) => u.id !== userId));
-  deleteRemote("users", { id: userId });
+  deleteRemote("profiles", { id: userId });
+
   saveEvents(
     getEvents().map((e) => ({
       ...e,
       assigneeIds: e.assigneeIds.filter((id) => id !== userId),
     }))
   );
-  const newAvail = getAvailability().filter((a) => a.userId !== userId);
-  write(KEYS.avail, newAvail);
+
+  write(KEYS.avail, getAvailability().filter((a) => a.userId !== userId));
   deleteRemote("availability", { user_id: userId });
-  const newTemplates = read<CommentTemplate[]>(KEYS.templates, []).filter(
-    (t) => t.userId !== userId
+
+  write(
+    KEYS.templates,
+    read<CommentTemplate[]>(KEYS.templates, []).filter((t) => t.userId !== userId)
   );
-  write(KEYS.templates, newTemplates);
   deleteRemote("comment_templates", { user_id: userId });
+
+  write(KEYS.requests, getRequests().filter((r) => r.toUserId !== userId));
+  deleteRemote("app_requests", { to_user_id: userId });
+
+  write(KEYS.payConf, getPayConfirmations().filter((p) => p.userId !== userId));
+  deleteRemote("pay_confirmations", { user_id: userId });
+
+  write(KEYS.eventApprovals, getEventApprovals().filter((a) => a.userId !== userId));
+  deleteRemote("event_approvals", { user_id: userId });
+
+  write(KEYS.timeClocks, getTimeClocks().filter((t) => t.userId !== userId));
+  deleteRemote("time_clocks", { user_id: userId });
+
+  write(KEYS.handoverNotes, getHandoverNotes().filter((n) => n.userId !== userId));
+  deleteRemote("handover_notes", { user_id: userId });
+
+  write(KEYS.attendanceAlerts, getAttendanceAlerts().filter((a) => a.userId !== userId));
+  deleteRemote("attendance_alerts", { user_id: userId });
+
+  write(
+    KEYS.recipients,
+    read<Recipient[]>(KEYS.recipients, []).filter((r) => r.userId !== userId)
+  );
+  deleteRemote("recipients", { user_id: userId });
+
+  deleteRemote("push_subscriptions", { user_id: userId });
 }
 
 // ---- 予定 ----

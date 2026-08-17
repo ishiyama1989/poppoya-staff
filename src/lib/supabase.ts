@@ -405,7 +405,9 @@ async function upsertRows<T>(
 
 // 特定の行だけを削除（削除操作はこちらで明示的に行う）
 export function deleteRemote(table: string, match: Record<string, unknown>): void {
-  supabase.from(table).delete().match(match).then(() => {}, () => {})
+  supabase.from(table).delete().match(match).then(({ error }) => {
+    if (error) console.error(`[sync] ${table} の削除に失敗しました:`, error.message)
+  })
 }
 
 // ---- Public sync functions (fire-and-forget from store.ts) ----
