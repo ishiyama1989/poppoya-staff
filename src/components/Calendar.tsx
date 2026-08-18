@@ -810,7 +810,7 @@ function DayPanel({
               ＋ 営業時間を設定
             </button>
           ) : (
-            <span className="muted">未設定</span>
+            <span className="muted">営業なし</span>
           )}
         </div>
 

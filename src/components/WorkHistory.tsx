@@ -4,6 +4,7 @@ import {
   getEventApprovals,
   getEvents,
   getMembers,
+  getTimeClocks,
 } from "../store";
 import { quarterLabel, quarterOf, todayStr, yen } from "../lib/date";
 import {
@@ -19,6 +20,7 @@ export default function WorkHistory({ me }: { me: User }) {
   const events = useMemo(() => getEvents(), []);
   const approvals = useMemo(() => getEventApprovals(), []);
   const members = useMemo(() => getMembers(), []);
+  const timeClocks = useMemo(() => getTimeClocks(), []);
 
   const [targetId, setTargetId] = useState(isOwner ? members[0]?.id ?? "" : me.id);
   const target = isOwner ? members.find((m) => m.id === targetId) : me;
@@ -39,9 +41,9 @@ export default function WorkHistory({ me }: { me: User }) {
   const { rows, summary } = useMemo(
     () =>
       target
-        ? buildWorkHistory(events, approvals, target.id, quarter)
+        ? buildWorkHistory(events, approvals, target.id, quarter, timeClocks)
         : { rows: [], summary: { count: 0, totalHours: 0, confirmedAmount: 0, pendingAmount: 0 } },
-    [events, approvals, target, quarter]
+    [events, approvals, target, quarter, timeClocks]
   );
 
   function exportPdf() {
@@ -116,6 +118,7 @@ export default function WorkHistory({ me }: { me: User }) {
             <th>日付</th>
             <th>活動内容</th>
             <th>種別</th>
+            <th>打刻</th>
             <th>稼働</th>
             <th>報酬</th>
             <th>状態</th>
@@ -124,7 +127,7 @@ export default function WorkHistory({ me }: { me: User }) {
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={6} className="muted">この期間の活動はありません。</td>
+              <td colSpan={7} className="muted">この期間の活動はありません。</td>
             </tr>
           ) : (
             rows.map((r) => (
@@ -132,6 +135,9 @@ export default function WorkHistory({ me }: { me: User }) {
                 <td>{r.date.replace(/-/g, "/")}</td>
                 <td>{r.title}</td>
                 <td className="muted hist-type">{r.typeLabel}</td>
+                <td className="muted hist-punch">
+                  {r.punchIn ? `${r.punchIn}–${r.punchOut ?? "—"}` : "—"}
+                </td>
                 <td>{r.hours > 0 ? `${r.hours.toFixed(1)}h` : "—"}</td>
                 <td className="amount">{r.amount != null ? yen(r.amount) : "—"}</td>
                 <td>
