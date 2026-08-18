@@ -17,6 +17,7 @@ import {
   type EventType,
   type Reservation,
   type ScheduleEvent,
+  type ShiftTemplate,
   type User,
 } from "../types";
 import {
@@ -32,6 +33,7 @@ import {
   eventsAwaitingAdmin,
   getMembers,
   getReservations,
+  getShiftTemplates,
   getCafeHours,
   cafeHoursOn,
   upsertCafeHours,
@@ -53,7 +55,7 @@ import {
   upsertEvent,
   uid,
 } from "../store";
-import { WEEKDAYS, monthGrid, todayStr, ymd } from "../lib/date";
+import { WEEKDAYS, addDays, monthGrid, todayStr, ymd } from "../lib/date";
 import { sendPushToUsers } from "../lib/push";
 import MapLinks from "./MapLinks";
 
@@ -86,12 +88,62 @@ for (let h = 0; h < 24; h++) {
   TIME_SLOTS.push(`${String(h).padStart(2, "0")}:30`);
 }
 
-// シフト依頼で選べる勤務時間帯（複数選択可）
-const SHIFT_TIME_PRESETS = [
-  { start: "15:00", end: "19:00" },
-  { start: "07:00", end: "10:00" },
-  { start: "10:00", end: "13:00" },
-] as const;
+// シフトの1コマ（実際に働く日・時間・業務内容）
+type ShiftSlot = { date: string; start: string; end: string; title: string };
+
+// 設定されたコマ（テンプレート）を、宿泊期間の実際の日付に展開する。
+// 連泊の中日は清掃が不要なので、timingごとに発生する日を変えている。
+function expandTemplate(t: ShiftTemplate, checkin: string, checkout: string): ShiftSlot[] {
+  const make = (date: string): ShiftSlot => ({
+    date,
+    start: t.startTime,
+    end: t.endTime,
+    title: t.name,
+  });
+  switch (t.timing) {
+    case "checkin":
+      return [make(checkin)];
+    case "checkout":
+      return [make(checkout)];
+    case "every_morning": {
+      const out: ShiftSlot[] = [];
+      for (let d = addDays(checkin, 1); d <= checkout; d = addDays(d, 1)) out.push(make(d));
+      return out;
+    }
+    case "middle_day": {
+      const out: ShiftSlot[] = [];
+      for (let d = addDays(checkin, 1); d < checkout; d = addDays(d, 1)) out.push(make(d));
+      return out;
+    }
+  }
+}
+
+const slotKey = (s: ShiftSlot) => `${s.date}|${s.start}|${s.end}`;
+
+// その日にチェックインする予約からコマを作る。
+// 予約がない日は「その日から1泊」とみなして同じルールで展開する。
+function buildShiftSlots(
+  date: string,
+  reservations: Reservation[],
+  templates: ShiftTemplate[]
+): ShiftSlot[] {
+  const starting = reservations.filter((r) => r.checkinDate === date);
+  const stays =
+    starting.length > 0
+      ? starting.map((r) => ({ checkin: r.checkinDate, checkout: r.checkoutDate }))
+      : [{ checkin: date, checkout: addDays(date, 1) }];
+
+  const source = stays.flatMap((s) =>
+    templates.flatMap((t) => expandTemplate(t, s.checkin, s.checkout))
+  );
+
+  // 同じ日・同じ時間のコマは1つにまとめる（2部屋同時予約で朝食が重複するため）
+  const merged = new Map<string, ShiftSlot>();
+  for (const s of source) if (!merged.has(slotKey(s))) merged.set(slotKey(s), s);
+  return [...merged.values()].sort((a, b) =>
+    a.date === b.date ? a.start.localeCompare(b.start) : a.date.localeCompare(b.date)
+  );
+}
 
 export default function Calendar({
   me,
@@ -571,6 +623,7 @@ function DayPanel({
   const dayRequests = requestsOn(date);
   const members = users.filter((u) => u.role !== "owner");
   const dayCafeHours = cafeHoursOn(date);
+  const shiftTemplates = getShiftTemplates();
   // カフェ管理人はメンバーとほぼ同じ権限だが、LOCOMO CAFEの営業時間だけ追加・編集できる
   const canManageCafe = me.role === "owner" || me.role === "cafe_manager";
 
@@ -724,6 +777,8 @@ function DayPanel({
             date={date}
             fromUserId={me.id}
             members={members}
+            reservations={getReservations()}
+            templates={shiftTemplates}
             initialSelectedIds={requestFormIds}
             onCancel={() => setRequestFormIds(null)}
             onSent={() => {
@@ -1364,11 +1419,14 @@ function EventForm({
   );
 }
 
-// オーナーがメンバーへ依頼（申請）を送るフォーム
+// オーナーがメンバーへ依頼（申請）を送るフォーム。
+// 予約から必要なコマ（業務・実際の勤務日）を割り出し、コマごとに送信先を選べる。
 function RequestForm({
   date,
   fromUserId,
   members,
+  reservations,
+  templates,
   initialSelectedIds,
   onCancel,
   onSent,
@@ -1376,56 +1434,85 @@ function RequestForm({
   date: string;
   fromUserId: string;
   members: User[];
+  reservations: Reservation[];
+  templates: ShiftTemplate[];
   initialSelectedIds: string[];
   onCancel: () => void;
   onSent: () => void;
 }) {
-  const [selectedIds, setSelectedIds] = useState<string[]>(initialSelectedIds);
   // 画面からは部屋の選択・場所欄をなくしたが、type/location列自体はDB上必須のため固定値で送る
   const type: EventType = "train";
   const location = "";
-  const [title, setTitle] = useState("この日シフトに入れませんか？");
-  // 時間帯は複数選択可（例: 早番と遅番の両方を依頼したい場合など）
-  const [selectedSlots, setSelectedSlots] = useState<(typeof SHIFT_TIME_PRESETS)[number][]>([]);
   const [note, setNote] = useState("");
 
-  const allSelected = members.length > 0 && selectedIds.length === members.length;
-  function toggleMember(id: string) {
-    setSelectedIds((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  const slots = useMemo(
+    () => buildShiftSlots(date, reservations, templates),
+    [date, reservations, templates]
+  );
+  // コマごとの送信先。まとめて依頼も、コマ別に違う人へ依頼もできるようにしている。
+  const [assignees, setAssignees] = useState<Record<string, string[]>>(() =>
+    Object.fromEntries(slots.map((s) => [slotKey(s), initialSelectedIds]))
+  );
+  const [checked, setChecked] = useState<string[]>([]);
+
+  function toggleSlot(key: string) {
+    setChecked((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
   }
-  function toggleAll() {
-    setSelectedIds(allSelected ? [] : members.map((m) => m.id));
+  function toggleAssignee(key: string, memberId: string) {
+    setAssignees((cur) => {
+      const list = cur[key] ?? [];
+      return {
+        ...cur,
+        [key]: list.includes(memberId)
+          ? list.filter((id) => id !== memberId)
+          : [...list, memberId],
+      };
+    });
   }
-  function toggleSlot(slot: (typeof SHIFT_TIME_PRESETS)[number]) {
-    setSelectedSlots((cur) =>
-      cur.includes(slot) ? cur.filter((s) => s !== slot) : [...cur, slot]
-    );
+  // 全コマに同じ人をまとめて設定する（1人に全部お願いしたいとき用）
+  function applyToAll(memberId: string) {
+    const allHave = slots.every((s) => (assignees[slotKey(s)] ?? []).includes(memberId));
+    setAssignees((cur) => {
+      const next = { ...cur };
+      for (const s of slots) {
+        const key = slotKey(s);
+        const list = next[key] ?? [];
+        next[key] = allHave ? list.filter((id) => id !== memberId) : [...new Set([...list, memberId])];
+      }
+      return next;
+    });
+    if (!allHave) setChecked(slots.map(slotKey));
   }
 
   function send() {
-    if (selectedIds.length === 0) return alert("送信先を選択してください");
-    if (!title.trim()) return alert("依頼内容を入力してください");
-    if (selectedSlots.length === 0) return alert("時間帯を選択してください");
-    for (const toUserId of selectedIds) {
-      for (const slot of selectedSlots) {
+    if (checked.length === 0) return alert("依頼するコマを選択してください");
+    const targets = slots.filter((s) => checked.includes(slotKey(s)));
+    for (const s of targets) {
+      if ((assignees[slotKey(s)] ?? []).length === 0) {
+        return alert(`「${s.title}」の送信先を選択してください`);
+      }
+    }
+    const notified = new Set<string>();
+    for (const s of targets) {
+      for (const toUserId of assignees[slotKey(s)] ?? []) {
         addRequest({
-          date,
+          date: s.date,
           fromUserId,
           toUserId,
           type,
-          title: title.trim(),
+          title: s.title,
           location,
-          start: slot.start,
-          end: slot.end,
+          start: s.start,
+          end: s.end,
           note,
         });
+        notified.add(toUserId);
       }
     }
-    const slotsLabel = selectedSlots.map((s) => `${s.start}〜${s.end}`).join("、");
     sendPushToUsers(
-      selectedIds,
+      [...notified],
       "新しい依頼が届きました",
-      `${date.slice(5).replace("-", "/")} ${slotsLabel}　「${title.trim()}」`,
+      `${targets.length}件のシフト依頼が届いています`,
       "/"
     );
     onSent();
@@ -1434,47 +1521,55 @@ function RequestForm({
   return (
     <div className="event-form req-form">
       <div className="req-form-head">シフトの依頼を送る</div>
+
       <label>
-        送信先
+        全コマにまとめて依頼する
         <div className="search-chips">
           {members.map((m) => (
             <button
               key={m.id}
               type="button"
-              className={`pick ${selectedIds.includes(m.id) ? "on" : ""}`}
-              onClick={() => toggleMember(m.id)}
+              className={`pick ${slots.every((s) => (assignees[slotKey(s)] ?? []).includes(m.id)) ? "on" : ""}`}
+              onClick={() => applyToAll(m.id)}
             >
               {m.name}
             </button>
           ))}
-          <button type="button" className={`pick ${allSelected ? "on" : ""}`} onClick={toggleAll}>
-            全員
-          </button>
         </div>
       </label>
-      <label>
-        依頼内容
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="例: この日シフトに入れませんか？"
-        />
-      </label>
-      <label>
-        時間帯（複数選択可）
-        <div className="search-chips">
-          {SHIFT_TIME_PRESETS.map((slot) => (
-            <button
-              key={`${slot.start}-${slot.end}`}
-              type="button"
-              className={`pick ${selectedSlots.includes(slot) ? "on" : ""}`}
-              onClick={() => toggleSlot(slot)}
-            >
-              {slot.start}〜{slot.end}
-            </button>
-          ))}
-        </div>
-      </label>
+
+      <label>依頼するコマ（複数選択可）</label>
+      <div className="slot-list">
+        {slots.map((s) => {
+          const key = slotKey(s);
+          const on = checked.includes(key);
+          return (
+            <div key={key} className={`slot-row ${on ? "on" : ""}`}>
+              <label className="checkbox-row">
+                <input type="checkbox" checked={on} onChange={() => toggleSlot(key)} />
+                <span>
+                  {s.date.slice(5).replace("-", "/")} {s.start}〜{s.end} ／ {s.title}
+                </span>
+              </label>
+              {on && (
+                <div className="search-chips slot-assignees">
+                  {members.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      className={`pick ${(assignees[key] ?? []).includes(m.id) ? "on" : ""}`}
+                      onClick={() => toggleAssignee(key, m.id)}
+                    >
+                      {m.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
       <label>
         メモ
         <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} />

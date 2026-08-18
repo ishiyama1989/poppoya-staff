@@ -13,6 +13,7 @@ import type {
   Reservation,
   Role,
   ScheduleEvent,
+  ShiftTemplate,
   TimeClock,
   User,
 } from "./types";
@@ -23,6 +24,7 @@ import {
   DEFAULT_CAFE_OPEN_TIME,
   DEFAULT_CAFE_CLOSE_TIME,
   MANUAL_RESERVATION_SOURCES,
+  DEFAULT_SHIFT_TEMPLATES,
 } from "./types";
 import { addDays } from "./lib/date";
 import { pinToAuthPassword } from "./lib/auth";
@@ -43,6 +45,7 @@ import {
   syncAttendanceAlerts,
   syncReservations,
   syncCafeHours,
+  syncShiftTemplates,
   deleteRemote,
 } from "./lib/supabase";
 
@@ -58,6 +61,7 @@ const KEYS = {
   eventApprovals: "sns_event_approvals",
   reservations: "sns_reservations",
   cafeHours: "sns_cafe_hours",
+  shiftTemplates: "sns_shift_templates",
   timeClocks: "sns_time_clocks",
   checklistItems: "sns_checklist_items",
   handoverNotes: "sns_handover_notes",
@@ -871,6 +875,51 @@ export function newCafeHours(date: string): CafeHours {
 export function deleteCafeHours(id: string): void {
   write(KEYS.cafeHours, getCafeHours().filter((c) => c.id !== id));
   deleteRemote("cafe_hours", { id });
+}
+
+// ---- シフトのコマ（勤務パターン）。管理者が設定画面で編集する ----
+export function getShiftTemplates(): ShiftTemplate[] {
+  return read<ShiftTemplate[]>(KEYS.shiftTemplates, []).sort(
+    (a, b) => a.sortOrder - b.sortOrder
+  );
+}
+
+function saveShiftTemplates(list: ShiftTemplate[]): void {
+  write(KEYS.shiftTemplates, list);
+  syncShiftTemplates(list);
+}
+
+export function upsertShiftTemplate(template: ShiftTemplate): void {
+  const list = getShiftTemplates();
+  const idx = list.findIndex((t) => t.id === template.id);
+  if (idx >= 0) list[idx] = template;
+  else list.push(template);
+  saveShiftTemplates(list);
+}
+
+export function newShiftTemplate(): ShiftTemplate {
+  const max = getShiftTemplates().reduce((m, t) => Math.max(m, t.sortOrder), 0);
+  return {
+    id: `slot:${uid()}`,
+    name: "",
+    timing: "checkin",
+    startTime: "09:00",
+    endTime: "12:00",
+    sortOrder: max + 1,
+  };
+}
+
+// 初期設定として標準のコマをまとめて作る（設定画面のボタンから呼ぶ）
+export function seedDefaultShiftTemplates(): void {
+  if (getShiftTemplates().length > 0) return;
+  saveShiftTemplates(
+    DEFAULT_SHIFT_TEMPLATES.map((t) => ({ ...t, id: `slot:${uid()}` }))
+  );
+}
+
+export function deleteShiftTemplate(id: string): void {
+  write(KEYS.shiftTemplates, getShiftTemplates().filter((t) => t.id !== id));
+  deleteRemote("shift_templates", { id });
 }
 
 // ---- 出退勤打刻 ----

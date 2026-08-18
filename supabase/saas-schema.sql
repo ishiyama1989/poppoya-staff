@@ -194,6 +194,18 @@ create table cafe_hours (
   unique (org_id, date)
 );
 
+-- シフトのコマ（勤務パターン）。管理者が設定画面で追加・編集できる。
+-- timing: checkin / every_morning / middle_day / checkout
+create table shift_templates (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  name text not null,
+  timing text not null default 'checkin',
+  start_time text not null default '09:00',
+  end_time text not null default '17:00',
+  sort_order integer not null default 0
+);
+
 -- 解析できなかった予約通知メール（書式変更の検知・後から手動対応するため保存）
 create table reservation_mail_errors (
   id uuid primary key default gen_random_uuid(),
@@ -227,7 +239,8 @@ begin
     'schedule_events','availability','app_requests','pay_confirmations',
     'recipients','comment_templates','event_approvals',
     'push_subscriptions',
-    'time_clocks','shift_checklist_items','handover_notes','attendance_alerts'
+    'time_clocks','shift_checklist_items','handover_notes','attendance_alerts',
+    'shift_templates'
   ] loop
     execute format('alter table %I enable row level security;', t);
     execute format('create policy s on %I for select using (org_id = auth_org_id());', t);

@@ -240,6 +240,41 @@ export interface CafeHours {
 export const DEFAULT_CAFE_OPEN_TIME = "09:00";
 export const DEFAULT_CAFE_CLOSE_TIME = "17:00";
 
+// シフトのコマ（勤務パターン）。管理者が設定画面で追加・編集できる。
+// timing = 宿泊のどのタイミングで発生する業務かを表す
+export type ShiftTiming = "checkin" | "every_morning" | "middle_day" | "checkout";
+
+export const SHIFT_TIMING_LABEL: Record<ShiftTiming, string> = {
+  checkin: "チェックイン日",
+  every_morning: "泊まった翌朝すべて",
+  middle_day: "連泊の中日のみ",
+  checkout: "チェックアウト日",
+};
+
+export const SHIFT_TIMINGS: ShiftTiming[] = [
+  "checkin",
+  "every_morning",
+  "middle_day",
+  "checkout",
+];
+
+export interface ShiftTemplate {
+  id: string;
+  name: string; // 業務名（例: 朝食対応）
+  timing: ShiftTiming;
+  startTime: string; // "HH:MM"
+  endTime: string; // "HH:MM"
+  sortOrder: number;
+}
+
+// 初期設定として用意するコマ。設定画面から追加・編集・削除できる。
+export const DEFAULT_SHIFT_TEMPLATES: Omit<ShiftTemplate, "id">[] = [
+  { name: "チェックイン・夕食準備", timing: "checkin", startTime: "15:00", endTime: "19:00", sortOrder: 1 },
+  { name: "朝食対応", timing: "every_morning", startTime: "07:00", endTime: "10:00", sortOrder: 2 },
+  { name: "夕食準備", timing: "middle_day", startTime: "15:00", endTime: "19:00", sortOrder: 3 },
+  { name: "清掃", timing: "checkout", startTime: "10:00", endTime: "13:00", sortOrder: 4 },
+];
+
 // 客室（宿ぽっぽやは2部屋）
 // 宿泊できるのはこの2室のみ。1室につき1日1組までしか受けられない。
 // （LOCOMO CAFE は宿泊ではなく業務場所なので、ここには含めない）

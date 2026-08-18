@@ -1,11 +1,22 @@
 import { useEffect, useState } from "react";
 import type {
+  ShiftTemplate,
+  ShiftTiming,
   StampFont,
   StampOrientation,
   StampShape,
   User,
 } from "../types";
-import { changePassword, updateUserProfile } from "../store";
+import { SHIFT_TIMINGS, SHIFT_TIMING_LABEL } from "../types";
+import {
+  changePassword,
+  deleteShiftTemplate,
+  getShiftTemplates,
+  newShiftTemplate,
+  seedDefaultShiftTemplates,
+  updateUserProfile,
+  upsertShiftTemplate,
+} from "../store";
 import { STAMP_FONTS, stampSvg } from "../lib/stamp";
 import { disablePush, enablePush, isPushEnabled, pushSupported } from "../lib/push";
 import { updateOrgTheme } from "../lib/auth";
@@ -161,6 +172,8 @@ export default function ProfileSettings({
           </div>
         </div>
       )}
+
+      {me.role === "owner" && <ShiftTemplateSettings />}
 
       <div className="settings-card">
         <h3>プッシュ通知</h3>
@@ -404,6 +417,159 @@ export default function ProfileSettings({
         <button className="primary" onClick={save}>
           {saved ? "保存しました ✓" : "設定を保存"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+// 管理者がシフトのコマ（勤務パターン）を追加・編集する設定。
+// ここで定義したコマが、予約日からシフト依頼を送るときの選択肢になる。
+function ShiftTemplateSettings() {
+  const [templates, setTemplates] = useState<ShiftTemplate[]>(() => getShiftTemplates());
+  const [editing, setEditing] = useState<ShiftTemplate | null>(null);
+
+  function refresh() {
+    setTemplates(getShiftTemplates());
+  }
+
+  return (
+    <div className="settings-card">
+      <h3>シフトのコマ</h3>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        予約日からシフト依頼を送るときの選択肢です。「いつ」を設定しておくと、連泊でも
+        実際に働く日を自動で割り出します。
+      </p>
+
+      {templates.length === 0 ? (
+        <>
+          <p className="muted small">まだコマがありません。</p>
+          <button
+            className="primary mini"
+            onClick={() => {
+              seedDefaultShiftTemplates();
+              refresh();
+            }}
+          >
+            標準の4コマを作成する
+          </button>
+        </>
+      ) : (
+        <div className="slot-list">
+          {templates.map((t) => (
+            <div key={t.id} className="slot-row">
+              <div className="reservation-head">
+                <span className="avail-chip">{t.name || "（名前未設定）"}</span>
+                <span className="tag">{SHIFT_TIMING_LABEL[t.timing]}</span>
+              </div>
+              <div className="reservation-meta">
+                {t.startTime}〜{t.endTime}
+              </div>
+              <div className="event-actions">
+                <button className="ghost" onClick={() => setEditing(t)}>
+                  編集
+                </button>
+                <button
+                  className="ghost danger"
+                  onClick={() => {
+                    if (confirm(`コマ「${t.name}」を削除しますか？`)) {
+                      deleteShiftTemplate(t.id);
+                      refresh();
+                    }
+                  }}
+                >
+                  削除
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!editing && templates.length > 0 && (
+        <button className="ghost mini" onClick={() => setEditing(newShiftTemplate())}>
+          ＋ コマを追加
+        </button>
+      )}
+
+      {editing && (
+        <ShiftTemplateEditor
+          value={editing}
+          onCancel={() => setEditing(null)}
+          onSave={(t) => {
+            upsertShiftTemplate(t);
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ShiftTemplateEditor({
+  value,
+  onCancel,
+  onSave,
+}: {
+  value: ShiftTemplate;
+  onCancel: () => void;
+  onSave: (t: ShiftTemplate) => void;
+}) {
+  const [draft, setDraft] = useState<ShiftTemplate>(value);
+
+  function set<K extends keyof ShiftTemplate>(key: K, val: ShiftTemplate[K]) {
+    setDraft((d) => ({ ...d, [key]: val }));
+  }
+
+  function handleSave() {
+    if (!draft.name.trim()) return alert("業務名を入力してください");
+    if (draft.endTime <= draft.startTime)
+      return alert("終了時間は開始時間より後にしてください");
+    onSave({ ...draft, name: draft.name.trim() });
+  }
+
+  return (
+    <div className="event-form">
+      <label>
+        業務名
+        <input
+          value={draft.name}
+          onChange={(e) => set("name", e.target.value)}
+          placeholder="例: 朝食対応"
+        />
+      </label>
+      <label>
+        いつの業務か
+        <select
+          value={draft.timing}
+          onChange={(e) => set("timing", e.target.value as ShiftTiming)}
+        >
+          {SHIFT_TIMINGS.map((t) => (
+            <option key={t} value={t}>{SHIFT_TIMING_LABEL[t]}</option>
+          ))}
+        </select>
+      </label>
+      <div className="row">
+        <label>
+          開始
+          <input
+            type="time"
+            value={draft.startTime}
+            onChange={(e) => set("startTime", e.target.value)}
+          />
+        </label>
+        <label>
+          終了
+          <input
+            type="time"
+            value={draft.endTime}
+            onChange={(e) => set("endTime", e.target.value)}
+          />
+        </label>
+      </div>
+      <div className="form-actions">
+        <button className="ghost" onClick={onCancel}>キャンセル</button>
+        <button className="primary" onClick={handleSave}>保存</button>
       </div>
     </div>
   );

@@ -825,6 +825,18 @@ label input, label select, label textarea { margin-top: 6px; font-weight: 400; }
   text-overflow: ellipsis;
 }
 
+/* シフトのコマ一覧（依頼フォーム・設定画面で共用） */
+.slot-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 12px; }
+.slot-row {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+}
+.slot-row.on { border-color: var(--primary); background: #fff8ee; }
+.slot-row .checkbox-row { margin-bottom: 0; }
+.slot-assignees { margin-top: 8px; }
+
 .cal-cafe-hours {
   color: #0d9668;
   background: rgba(18,184,134,0.12);

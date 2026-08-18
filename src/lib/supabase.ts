@@ -12,6 +12,7 @@ import type {
   Recipient,
   Reservation,
   ScheduleEvent,
+  ShiftTemplate,
   TimeClock,
   User,
 } from '../types'
@@ -338,6 +339,24 @@ const fromDbCafeHours = (c: any): CafeHours => ({
   note: c.note ?? '',
 })
 
+const toDbShiftTemplate = (t: ShiftTemplate) => ({
+  id: t.id,
+  name: t.name,
+  timing: t.timing,
+  start_time: t.startTime,
+  end_time: t.endTime,
+  sort_order: t.sortOrder,
+})
+
+const fromDbShiftTemplate = (t: any): ShiftTemplate => ({
+  id: t.id,
+  name: t.name ?? '',
+  timing: t.timing ?? 'checkin',
+  startTime: t.start_time ?? '09:00',
+  endTime: t.end_time ?? '17:00',
+  sortOrder: t.sort_order ?? 0,
+})
+
 // プロフィール（= アプリの User）。SaaS版では users テーブルの代わりに profiles を使う。
 const toDbProfile = (u: User) => ({
   id: u.id,
@@ -468,13 +487,17 @@ export function syncCafeHours(list: CafeHours[]): void {
   upsertRows('cafe_hours', list, toDbCafeHours, 'id').catch(() => {})
 }
 
+export function syncShiftTemplates(list: ShiftTemplate[]): void {
+  upsertRows('shift_templates', list, toDbShiftTemplate, 'id').catch(() => {})
+}
+
 // ---- SaaS版：ログイン中の組織のデータを読み込む（RLSで自組織のみ） ----
 export async function loadOrgData(): Promise<void> {
   const [
     profiles, events, avail, requests, pay, recipients,
     templates, approvals, reservations,
     timeClocks, checklistItems, handoverNotes, attendanceAlerts,
-    cafeHours,
+    cafeHours, shiftTemplates,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
     supabase.from('schedule_events').select('*'),
@@ -490,6 +513,7 @@ export async function loadOrgData(): Promise<void> {
     supabase.from('handover_notes').select('*'),
     supabase.from('attendance_alerts').select('*'),
     supabase.from('cafe_hours').select('*'),
+    supabase.from('shift_templates').select('*'),
   ])
   // 読み込みに失敗したテーブルは上書きせず前回の内容を残し、原因を記録する。
   // （黙って空にすると、画面上はデータが消えたようにしか見えないため）
@@ -518,6 +542,7 @@ export async function loadOrgData(): Promise<void> {
   put('sns_handover_notes', handoverNotes, fromDbHandoverNote)
   put('sns_attendance_alerts', attendanceAlerts, fromDbAttendanceAlert)
   put('sns_cafe_hours', cafeHours, fromDbCafeHours)
+  put('sns_shift_templates', shiftTemplates, fromDbShiftTemplate)
 }
 
 // ---- Hydration: Supabase → localStorage on app start（旧・単一テナント用。SaaS版では未使用） ----
