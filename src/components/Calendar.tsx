@@ -1425,9 +1425,43 @@ function EventForm({
     }));
   }
 
+  // 担当者が既にいる予定の勤務時間（開始・終了）を変えた場合は、即確定せず
+  // 担当者の承認を経てから予定に反映する（無断でシフト時間が変わるのを防ぐ）。
+  const timeChanged = draft.start !== value.start || draft.end !== value.end;
+  const needsApproval = draft.assigneeIds.length > 0 && timeChanged;
+
   function handleSave(alsoRequest: boolean) {
     if (!draft.title.trim()) return alert("内容を入力してください");
-    const saved = { ...draft, title: draft.title.trim() };
+    const title = draft.title.trim();
+
+    if (me.role === "owner" && needsApproval) {
+      // 時間の変更は担当者の承認待ちにする。予定自体は元の時間のまま保存する。
+      const saved = { ...draft, title, start: value.start, end: value.end };
+      onSave(saved);
+      for (const toUserId of draft.assigneeIds) {
+        addRequest({
+          date: draft.date,
+          fromUserId: me.id,
+          toUserId,
+          type: draft.type,
+          title,
+          location: draft.location,
+          start: draft.start,
+          end: draft.end,
+          note: draft.note,
+          eventId: value.id,
+        });
+      }
+      sendPushToUsers(
+        draft.assigneeIds,
+        "勤務時間の変更確認をお願いします",
+        `${draft.date.slice(5).replace("-", "/")} ${draft.start}〜${draft.end || "未定"}　${TYPE_JP[draft.type] ?? ""}「${title}」`,
+        "/"
+      );
+      return;
+    }
+
+    const saved = { ...draft, title };
     onSave(saved);
     if (me.role === "owner" && draft.assigneeIds.length > 0) {
       if (alsoRequest) {
@@ -1468,27 +1502,16 @@ function EventForm({
           placeholder="例: カフェ案件 撮影"
         />
       </label>
-      <div className="row">
-        <label>
-          種別
-          <select
-            value={draft.type}
-            onChange={(e) => set("type", e.target.value as EventType)}
-          >
-            <option value="train">トレインルーム</option>
-            <option value="retro">レトロルーム</option>
-          </select>
-        </label>
-        <label>
-          場所
-          <input
-            value={draft.location}
-            onChange={(e) => set("location", e.target.value)}
-            placeholder="渋谷スタジオ / 住所など"
-          />
-          <MapLinks query={draft.location} />
-        </label>
-      </div>
+      <label>
+        種別
+        <select
+          value={draft.type}
+          onChange={(e) => set("type", e.target.value as EventType)}
+        >
+          <option value="train">トレインルーム</option>
+          <option value="retro">レトロルーム</option>
+        </select>
+      </label>
       <div className="row">
         <label>
           開始
@@ -1530,17 +1553,25 @@ function EventForm({
       </label>
       <div className="form-actions">
         <button className="ghost" onClick={onCancel}>キャンセル</button>
-        <button className="primary" onClick={() => handleSave(false)}>保存</button>
-        {canRequest && (
+        <button className="primary" onClick={() => handleSave(false)}>
+          {needsApproval ? "変更を依頼する" : "保存"}
+        </button>
+        {canRequest && !needsApproval && (
           <button className="primary" onClick={() => handleSave(true)}>
             保存して依頼する
           </button>
         )}
       </div>
-      {canRequest && (
+      {needsApproval ? (
         <p className="muted small" style={{ marginTop: 6 }}>
-          「保存して依頼する」で担当者全員に依頼を送信します
+          勤務時間を変更したので、担当者に承認を依頼します。承認されるまで予定の時間は変わりません。
         </p>
+      ) : (
+        canRequest && (
+          <p className="muted small" style={{ marginTop: 6 }}>
+            「保存して依頼する」で担当者全員に依頼を送信します
+          </p>
+        )
       )}
     </div>
   );

@@ -498,14 +498,21 @@ export function approveRequest(id: string): void {
         e.end === r.end
     );
   }
-  // 既存の予定があれば、その予定に担当者を追加するだけ（新規作成しない）
+  // 既存の予定があれば、依頼内容（勤務時間の変更など）を反映しつつ担当者を追加する。
+  // これにより、時間変更の依頼は承認されて初めて予定に反映される。
   if (target) {
-    if (!target.assigneeIds.includes(r.toUserId)) {
-      upsertEvent({
-        ...target,
-        assigneeIds: [...target.assigneeIds, r.toUserId],
-      });
-    }
+    const assigneeIds = target.assigneeIds.includes(r.toUserId)
+      ? target.assigneeIds
+      : [...target.assigneeIds, r.toUserId];
+    upsertEvent({
+      ...target,
+      title: r.title,
+      location: r.location,
+      start: r.start,
+      end: r.end,
+      note: r.note,
+      assigneeIds,
+    });
     return;
   }
   // 3) 元になる予定がない（手動依頼など）場合のみ新規作成
