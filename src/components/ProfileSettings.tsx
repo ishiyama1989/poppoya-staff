@@ -459,7 +459,11 @@ function ShiftTemplateSettings() {
             <div key={t.id} className="slot-row">
               <div className="reservation-head">
                 <span className="avail-chip">{t.name || "（名前未設定）"}</span>
-                <span className="tag">{SHIFT_TIMING_LABEL[t.timing]}</span>
+                {t.timings.map((ti) => (
+                  <span key={ti} className="tag">
+                    {SHIFT_TIMING_LABEL[ti]}
+                  </span>
+                ))}
               </div>
               <div className="reservation-meta">
                 {t.startTime}〜{t.endTime}
@@ -521,8 +525,18 @@ function ShiftTemplateEditor({
     setDraft((d) => ({ ...d, [key]: val }));
   }
 
+  function toggleTiming(timing: ShiftTiming) {
+    setDraft((d) => ({
+      ...d,
+      timings: d.timings.includes(timing)
+        ? d.timings.filter((t) => t !== timing)
+        : [...d.timings, timing],
+    }));
+  }
+
   function handleSave() {
     if (!draft.name.trim()) return alert("業務名を入力してください");
+    if (draft.timings.length === 0) return alert("いつの業務か、1つ以上選んでください");
     if (draft.endTime <= draft.startTime)
       return alert("終了時間は開始時間より後にしてください");
     onSave({ ...draft, name: draft.name.trim() });
@@ -538,17 +552,19 @@ function ShiftTemplateEditor({
           placeholder="例: 朝食対応"
         />
       </label>
-      <label>
-        いつの業務か
-        <select
-          value={draft.timing}
-          onChange={(e) => set("timing", e.target.value as ShiftTiming)}
-        >
-          {SHIFT_TIMINGS.map((t) => (
-            <option key={t} value={t}>{SHIFT_TIMING_LABEL[t]}</option>
-          ))}
-        </select>
-      </label>
+      <label>いつの業務か（複数選択可）</label>
+      <div className="slot-picker">
+        {SHIFT_TIMINGS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            className={`slot-btn ${draft.timings.includes(t) ? "on" : ""}`}
+            onClick={() => toggleTiming(t)}
+          >
+            {SHIFT_TIMING_LABEL[t]}
+          </button>
+        ))}
+      </div>
       <div className="row">
         <label>
           開始

@@ -242,7 +242,7 @@ export const SHIFT_TIMINGS: ShiftTiming[] = [
 export interface ShiftTemplate {
   id: string;
   name: string; // 業務名（例: 朝食対応）
-  timing: ShiftTiming;
+  timings: ShiftTiming[]; // 複数選択可（例: チェックイン日 と 連泊の中日 の両方で発生する業務）
   startTime: string; // "HH:MM"
   endTime: string; // "HH:MM"
   sortOrder: number;
@@ -250,10 +250,10 @@ export interface ShiftTemplate {
 
 // 初期設定として用意するコマ。設定画面から追加・編集・削除できる。
 export const DEFAULT_SHIFT_TEMPLATES: Omit<ShiftTemplate, "id">[] = [
-  { name: "チェックイン・夕食準備", timing: "checkin", startTime: "15:00", endTime: "19:00", sortOrder: 1 },
-  { name: "朝食対応", timing: "every_morning", startTime: "07:00", endTime: "10:00", sortOrder: 2 },
-  { name: "夕食準備", timing: "middle_day", startTime: "15:00", endTime: "19:00", sortOrder: 3 },
-  { name: "清掃", timing: "checkout", startTime: "10:00", endTime: "13:00", sortOrder: 4 },
+  { name: "チェックイン・夕食準備", timings: ["checkin"], startTime: "15:00", endTime: "19:00", sortOrder: 1 },
+  { name: "朝食対応", timings: ["every_morning"], startTime: "07:00", endTime: "10:00", sortOrder: 2 },
+  { name: "夕食準備", timings: ["middle_day"], startTime: "15:00", endTime: "19:00", sortOrder: 3 },
+  { name: "清掃", timings: ["checkout"], startTime: "10:00", endTime: "13:00", sortOrder: 4 },
 ];
 
 // 客室（宿ぽっぽやは2部屋）

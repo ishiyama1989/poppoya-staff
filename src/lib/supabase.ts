@@ -342,7 +342,7 @@ const fromDbCafeHours = (c: any): CafeHours => ({
 const toDbShiftTemplate = (t: ShiftTemplate) => ({
   id: t.id,
   name: t.name,
-  timing: t.timing,
+  timing: t.timings.join(','),
   start_time: t.startTime,
   end_time: t.endTime,
   sort_order: t.sortOrder,
@@ -351,7 +351,7 @@ const toDbShiftTemplate = (t: ShiftTemplate) => ({
 const fromDbShiftTemplate = (t: any): ShiftTemplate => ({
   id: t.id,
   name: t.name ?? '',
-  timing: t.timing ?? 'checkin',
+  timings: (t.timing ? String(t.timing).split(',').filter(Boolean) : ['checkin']) as ShiftTemplate['timings'],
   startTime: t.start_time ?? '09:00',
   endTime: t.end_time ?? '17:00',
   sortOrder: t.sort_order ?? 0,

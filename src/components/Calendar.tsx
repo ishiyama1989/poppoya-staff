@@ -17,6 +17,7 @@ import {
   type Reservation,
   type ScheduleEvent,
   type ShiftTemplate,
+  type ShiftTiming,
   type User,
 } from "../types";
 import {
@@ -95,31 +96,39 @@ for (let h = 0; h < 24; h++) {
 // シフトの1コマ（実際に働く日・時間・業務内容）
 type ShiftSlot = { date: string; start: string; end: string; title: string };
 
+// 1つの timing が、宿泊期間中どの日付に発生するかを返す。
+function datesForTiming(timing: ShiftTiming, checkin: string, checkout: string): string[] {
+  switch (timing) {
+    case "checkin":
+      return [checkin];
+    case "checkout":
+      return [checkout];
+    case "every_morning": {
+      const out: string[] = [];
+      for (let d = addDays(checkin, 1); d <= checkout; d = addDays(d, 1)) out.push(d);
+      return out;
+    }
+    case "middle_day": {
+      const out: string[] = [];
+      for (let d = addDays(checkin, 1); d < checkout; d = addDays(d, 1)) out.push(d);
+      return out;
+    }
+  }
+}
+
 // 設定されたコマ（テンプレート）を、宿泊期間の実際の日付に展開する。
 // 連泊の中日は清掃が不要なので、timingごとに発生する日を変えている。
+// timingsを複数選択している場合はすべての日付をまとめて展開する（重複日は1つに）。
 function expandTemplate(t: ShiftTemplate, checkin: string, checkout: string): ShiftSlot[] {
-  const make = (date: string): ShiftSlot => ({
+  const dates = new Set<string>();
+  for (const timing of t.timings)
+    for (const d of datesForTiming(timing, checkin, checkout)) dates.add(d);
+  return [...dates].map((date) => ({
     date,
     start: t.startTime,
     end: t.endTime,
     title: t.name,
-  });
-  switch (t.timing) {
-    case "checkin":
-      return [make(checkin)];
-    case "checkout":
-      return [make(checkout)];
-    case "every_morning": {
-      const out: ShiftSlot[] = [];
-      for (let d = addDays(checkin, 1); d <= checkout; d = addDays(d, 1)) out.push(make(d));
-      return out;
-    }
-    case "middle_day": {
-      const out: ShiftSlot[] = [];
-      for (let d = addDays(checkin, 1); d < checkout; d = addDays(d, 1)) out.push(make(d));
-      return out;
-    }
-  }
+  }));
 }
 
 const slotKey = (s: ShiftSlot) => `${s.date}|${s.start}|${s.end}`;

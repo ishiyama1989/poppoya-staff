@@ -905,7 +905,7 @@ export function newShiftTemplate(): ShiftTemplate {
   return {
     id: `slot:${uid()}`,
     name: "",
-    timing: "checkin",
+    timings: ["checkin"],
     startTime: "09:00",
     endTime: "12:00",
     sortOrder: max + 1,
