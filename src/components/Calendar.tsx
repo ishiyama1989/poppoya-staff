@@ -86,6 +86,13 @@ for (let h = 0; h < 24; h++) {
   TIME_SLOTS.push(`${String(h).padStart(2, "0")}:30`);
 }
 
+// シフト依頼で選べる勤務時間帯（複数選択可）
+const SHIFT_TIME_PRESETS = [
+  { start: "15:00", end: "19:00" },
+  { start: "07:00", end: "10:00" },
+  { start: "10:00", end: "13:00" },
+] as const;
+
 export default function Calendar({
   me,
   onOpenRequests,
@@ -1378,8 +1385,8 @@ function RequestForm({
   const type: EventType = "train";
   const location = "";
   const [title, setTitle] = useState("この日シフトに入れませんか？");
-  const [start, setStart] = useState("10:00");
-  const [end, setEnd] = useState("");
+  // 時間帯は複数選択可（例: 早番と遅番の両方を依頼したい場合など）
+  const [selectedSlots, setSelectedSlots] = useState<(typeof SHIFT_TIME_PRESETS)[number][]>([]);
   const [note, setNote] = useState("");
 
   const allSelected = members.length > 0 && selectedIds.length === members.length;
@@ -1389,27 +1396,36 @@ function RequestForm({
   function toggleAll() {
     setSelectedIds(allSelected ? [] : members.map((m) => m.id));
   }
+  function toggleSlot(slot: (typeof SHIFT_TIME_PRESETS)[number]) {
+    setSelectedSlots((cur) =>
+      cur.includes(slot) ? cur.filter((s) => s !== slot) : [...cur, slot]
+    );
+  }
 
   function send() {
     if (selectedIds.length === 0) return alert("送信先を選択してください");
     if (!title.trim()) return alert("依頼内容を入力してください");
+    if (selectedSlots.length === 0) return alert("時間帯を選択してください");
     for (const toUserId of selectedIds) {
-      addRequest({
-        date,
-        fromUserId,
-        toUserId,
-        type,
-        title: title.trim(),
-        location,
-        start,
-        end,
-        note,
-      });
+      for (const slot of selectedSlots) {
+        addRequest({
+          date,
+          fromUserId,
+          toUserId,
+          type,
+          title: title.trim(),
+          location,
+          start: slot.start,
+          end: slot.end,
+          note,
+        });
+      }
     }
+    const slotsLabel = selectedSlots.map((s) => `${s.start}〜${s.end}`).join("、");
     sendPushToUsers(
       selectedIds,
       "新しい依頼が届きました",
-      `${date.slice(5).replace("-", "/")} ${start}〜${end || "未定"}　「${title.trim()}」`,
+      `${date.slice(5).replace("-", "/")} ${slotsLabel}　「${title.trim()}」`,
       "/"
     );
     onSent();
@@ -1444,25 +1460,21 @@ function RequestForm({
           placeholder="例: この日シフトに入れませんか？"
         />
       </label>
-      <div className="row">
-        <label>
-          開始
-          <select value={start} onChange={(e) => setStart(e.target.value)}>
-            {TIME_SLOTS.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          終了
-          <select value={end} onChange={(e) => setEnd(e.target.value)}>
-            <option value="">未定</option>
-            {TIME_SLOTS.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <label>
+        時間帯（複数選択可）
+        <div className="search-chips">
+          {SHIFT_TIME_PRESETS.map((slot) => (
+            <button
+              key={`${slot.start}-${slot.end}`}
+              type="button"
+              className={`pick ${selectedSlots.includes(slot) ? "on" : ""}`}
+              onClick={() => toggleSlot(slot)}
+            >
+              {slot.start}〜{slot.end}
+            </button>
+          ))}
+        </div>
+      </label>
       <label>
         メモ
         <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
