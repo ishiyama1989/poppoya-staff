@@ -939,9 +939,11 @@ function DayPanel({
                       依頼する
                     </button>
                   )}
-                  <button className="ghost" onClick={() => setEditing(e)}>
-                    編集
-                  </button>
+                  {me.role === "owner" && (
+                    <button className="ghost" onClick={() => setEditing(e)}>
+                      編集
+                    </button>
+                  )}
                   {me.role === "owner" && (
                     <button
                       className="ghost danger"
