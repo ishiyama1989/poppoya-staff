@@ -46,8 +46,10 @@ import {
   newCafeHours,
   deleteCafeHours,
   getUnseenAssignedEvents,
+  getUnseenRespondedRequests,
   getUsers,
   markAssignedEventsSeen,
+  markRespondedRequestsSeen,
   pendingEventApprovalsForUser,
   pendingRequestsForUser,
   rejectRequest,
@@ -219,6 +221,11 @@ export default function Calendar({
   // メンバー・カフェ管理人：自分に割り当てられた新しい予定（未確認）
   const unseenEvents = useMemo(
     () => (me.role !== "owner" ? getUnseenAssignedEvents(me.id) : []),
+    [version, me]
+  );
+  // オーナー：自分が送った依頼が承認・却下された（未確認）
+  const unseenResponded = useMemo(
+    () => (me.role === "owner" ? getUnseenRespondedRequests(me.id) : []),
     [version, me]
   );
 
@@ -441,6 +448,31 @@ export default function Calendar({
               className="primary"
               onClick={() => {
                 markAssignedEventsSeen(me.id);
+                refresh();
+              }}
+            >
+              確認しました
+            </button>
+          </div>
+        )}
+        {unseenResponded.length > 0 && (
+          <div className="pending-banner event">
+            <span className="pending-banner-text">
+              依頼の返答が <strong>{unseenResponded.length}件</strong> 届いています
+              <span className="unseen-dates">
+                {unseenResponded
+                  .slice(0, 4)
+                  .map((r) => {
+                    const name = users.find((u) => u.id === r.toUserId)?.name ?? "";
+                    return `${name}：${REQUEST_STATUS_LABEL[r.status]}`;
+                  })
+                  .join("、")}
+              </span>
+            </span>
+            <button
+              className="primary"
+              onClick={() => {
+                markRespondedRequestsSeen(me.id);
                 refresh();
               }}
             >

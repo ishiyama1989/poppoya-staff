@@ -9,6 +9,7 @@ import {
   rejectRequest,
   requestsForUser,
 } from "../store";
+import { sendPushToUsers } from "../lib/push";
 import MapLinks from "./MapLinks";
 
 export default function Requests({ me }: { me: User }) {
@@ -63,6 +64,11 @@ export default function Requests({ me }: { me: User }) {
                   className="ghost danger"
                   onClick={() => {
                     rejectRequest(r.id);
+                    sendPushToUsers(
+                      [r.fromUserId],
+                      "依頼が却下されました",
+                      `${me.name}さんが「${r.title}」（${r.date.replace(/-/g, "/")}）を却下しました`
+                    );
                     refresh();
                   }}
                 >
@@ -72,6 +78,11 @@ export default function Requests({ me }: { me: User }) {
                   className="primary"
                   onClick={() => {
                     approveRequest(r.id);
+                    sendPushToUsers(
+                      [r.fromUserId],
+                      "依頼が承認されました",
+                      `${me.name}さんが「${r.title}」（${r.date.replace(/-/g, "/")}）を承認しました`
+                    );
                     refresh();
                   }}
                 >

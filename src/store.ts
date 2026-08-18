@@ -456,6 +456,27 @@ export function pendingRequestsSentByUser(userId: string): number {
   ).length;
 }
 
+// ---- アプリ内通知（自分が送った依頼が承認・却下された） ----
+function seenRespondedRequestsKey(userId: string): string {
+  return `sns_seen_responded_requests_${userId}`;
+}
+
+// まだ確認していない、自分が送って承認/却下された依頼（カレンダー上部のバナー用）
+export function getUnseenRespondedRequests(userId: string): AppRequest[] {
+  const seen = read<string[]>(seenRespondedRequestsKey(userId), []);
+  return getRequests().filter(
+    (r) => r.fromUserId === userId && r.status !== "pending" && !seen.includes(r.id)
+  );
+}
+
+// 自分が送って承認/却下された依頼をすべて「確認済み」にする
+export function markRespondedRequestsSeen(userId: string): void {
+  const ids = getRequests()
+    .filter((r) => r.fromUserId === userId && r.status !== "pending")
+    .map((r) => r.id);
+  write(seenRespondedRequestsKey(userId), ids);
+}
+
 export function approveRequest(id: string): void {
   const rs = getRequests();
   const r = rs.find((x) => x.id === id);
