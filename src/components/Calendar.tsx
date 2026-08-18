@@ -28,6 +28,7 @@ import {
   deleteChecklistItem,
   deleteEvent,
   getAvailability,
+  getAvailabilityFor,
   getChecklistItems,
   getEvents,
   eventsAwaitingAdmin,
@@ -94,7 +95,7 @@ for (let h = 0; h < 24; h++) {
 }
 
 // シフトの1コマ（実際に働く日・時間・業務内容）
-type ShiftSlot = { date: string; start: string; end: string; title: string };
+type ShiftSlot = { date: string; start: string; end: string; title: string; templateId: string };
 
 // 1つの timing が、宿泊期間中どの日付に発生するかを返す。
 function datesForTiming(timing: ShiftTiming, checkin: string, checkout: string): string[] {
@@ -128,6 +129,7 @@ function expandTemplate(t: ShiftTemplate, checkin: string, checkout: string): Sh
     start: t.startTime,
     end: t.endTime,
     title: t.name,
+    templateId: t.id,
   }));
 }
 
@@ -1546,7 +1548,14 @@ function RequestForm({
   const [assignees, setAssignees] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(slots.map((s) => [slotKey(s), initialSelectedIds]))
   );
-  const [checked, setChecked] = useState<string[]>([]);
+  // 特定の1人に「依頼する」で開いた場合は、その人が稼働可能日設定で
+  // 対応できると登録しているコマに自動でチェックを入れる。
+  const [checked, setChecked] = useState<string[]>(() => {
+    if (initialSelectedIds.length !== 1) return [];
+    const avail = getAvailabilityFor(initialSelectedIds[0], date);
+    if (!avail) return [];
+    return slots.filter((s) => avail.slots.includes(s.templateId)).map(slotKey);
+  });
 
   function toggleSlot(key: string) {
     setChecked((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
