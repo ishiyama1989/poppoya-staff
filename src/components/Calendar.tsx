@@ -971,7 +971,7 @@ function DayPanel({
                           .join(", ") || "未割当"}
                   </div>
                   {e.note && <div className="event-note">{e.note}</div>}
-                  <EventChecklist eventId={e.id} />
+                  <EventChecklist eventId={e.id} canManage={me.role === "owner"} />
                 </div>
                 <div className="event-actions">
                   {me.role === "owner" && (
@@ -1847,7 +1847,13 @@ function BulkShiftForm({
 }
 
 // 予定(シフト)ごとの業務チェックリスト
-function EventChecklist({ eventId }: { eventId: string }) {
+function EventChecklist({
+  eventId,
+  canManage,
+}: {
+  eventId: string;
+  canManage: boolean;
+}) {
   const [items, setItems] = useState<ChecklistItem[]>(() => getChecklistItems(eventId));
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
@@ -1889,34 +1895,38 @@ function EventChecklist({ eventId }: { eventId: string }) {
                 }}
               />
               <span>{i.text}</span>
-              <button
-                type="button"
-                className="checklist-del"
-                onClick={() => {
-                  deleteChecklistItem(i.id);
-                  refresh();
-                }}
-              >
-                ×
-              </button>
+              {canManage && (
+                <button
+                  type="button"
+                  className="checklist-del"
+                  onClick={() => {
+                    deleteChecklistItem(i.id);
+                    refresh();
+                  }}
+                >
+                  ×
+                </button>
+              )}
             </label>
           ))}
-          <div className="checklist-add">
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="例: 布団を上げる"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  add();
-                }
-              }}
-            />
-            <button type="button" className="ghost mini" onClick={add}>
-              ＋追加
-            </button>
-          </div>
+          {canManage && (
+            <div className="checklist-add">
+              <input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="例: 布団を上げる"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    add();
+                  }
+                }}
+              />
+              <button type="button" className="ghost mini" onClick={add}>
+                ＋追加
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
