@@ -8,6 +8,7 @@ import type {
   CommentTemplate,
   EventApproval,
   HandoverNote,
+  NotificationSchedule,
   PayConfirmation,
   Recipient,
   Reservation,
@@ -357,6 +358,32 @@ const fromDbShiftTemplate = (t: any): ShiftTemplate => ({
   sortOrder: t.sort_order ?? 0,
 })
 
+const toDbNotificationSchedule = (s: NotificationSchedule) => ({
+  id: s.id,
+  name: s.name,
+  message: s.message,
+  recipient_mode: s.recipientMode,
+  recipient_ids: s.recipientIds,
+  day_of_month: s.dayOfMonth,
+  hour: s.hour,
+  minute: s.minute,
+  enabled: s.enabled,
+  last_sent_at: s.lastSentAt ?? null,
+})
+
+const fromDbNotificationSchedule = (s: any): NotificationSchedule => ({
+  id: s.id,
+  name: s.name ?? '',
+  message: s.message ?? '',
+  recipientMode: s.recipient_mode === 'selected' ? 'selected' : 'all',
+  recipientIds: Array.isArray(s.recipient_ids) ? s.recipient_ids : [],
+  dayOfMonth: s.day_of_month ?? 1,
+  hour: s.hour ?? 9,
+  minute: s.minute ?? 0,
+  enabled: s.enabled ?? true,
+  lastSentAt: s.last_sent_at ?? undefined,
+})
+
 // プロフィール（= アプリの User）。SaaS版では users テーブルの代わりに profiles を使う。
 const toDbProfile = (u: User) => ({
   id: u.id,
@@ -491,13 +518,17 @@ export function syncShiftTemplates(list: ShiftTemplate[]): void {
   upsertRows('shift_templates', list, toDbShiftTemplate, 'id').catch(() => {})
 }
 
+export function syncNotificationSchedules(list: NotificationSchedule[]): void {
+  upsertRows('notification_schedules', list, toDbNotificationSchedule, 'id').catch(() => {})
+}
+
 // ---- SaaS版：ログイン中の組織のデータを読み込む（RLSで自組織のみ） ----
 export async function loadOrgData(): Promise<void> {
   const [
     profiles, events, avail, requests, pay, recipients,
     templates, approvals, reservations,
     timeClocks, checklistItems, handoverNotes, attendanceAlerts,
-    cafeHours, shiftTemplates,
+    cafeHours, shiftTemplates, notificationSchedules,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
     supabase.from('schedule_events').select('*'),
@@ -514,6 +545,7 @@ export async function loadOrgData(): Promise<void> {
     supabase.from('attendance_alerts').select('*'),
     supabase.from('cafe_hours').select('*'),
     supabase.from('shift_templates').select('*'),
+    supabase.from('notification_schedules').select('*'),
   ])
   // 読み込みに失敗したテーブルは上書きせず前回の内容を残し、原因を記録する。
   // （黙って空にすると、画面上はデータが消えたようにしか見えないため）
@@ -543,6 +575,7 @@ export async function loadOrgData(): Promise<void> {
   put('sns_attendance_alerts', attendanceAlerts, fromDbAttendanceAlert)
   put('sns_cafe_hours', cafeHours, fromDbCafeHours)
   put('sns_shift_templates', shiftTemplates, fromDbShiftTemplate)
+  put('sns_notification_schedules', notificationSchedules, fromDbNotificationSchedule)
 }
 
 // ---- Hydration: Supabase → localStorage on app start（旧・単一テナント用。SaaS版では未使用） ----

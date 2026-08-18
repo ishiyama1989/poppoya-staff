@@ -3,3 +3,7 @@ project_id = "rrwljoqzrxkjdxfhlnxv"
 # プッシュ送信関数は独自ログイン方式のためJWT検証は不要
 [functions.send-push]
 verify_jwt = false
+
+# pg_cronから呼ばれる関数。認証はCRON_SECRETの合言葉で行うためJWT検証は不要
+[functions.send-scheduled-notifications]
+verify_jwt = false

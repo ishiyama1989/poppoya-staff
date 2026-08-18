@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import type {
+  NotificationRecipientMode,
+  NotificationSchedule,
   ShiftTemplate,
   ShiftTiming,
   StampFont,
@@ -7,14 +9,26 @@ import type {
   StampShape,
   User,
 } from "../types";
-import { SHIFT_TIMINGS, SHIFT_TIMING_LABEL } from "../types";
+import {
+  NOTIFICATION_DAY_OPTIONS,
+  NOTIFICATION_HOUR_OPTIONS,
+  NOTIFICATION_MINUTE_OPTIONS,
+  NOTIFICATION_RECIPIENT_MODE_LABEL,
+  SHIFT_TIMINGS,
+  SHIFT_TIMING_LABEL,
+} from "../types";
 import {
   changePassword,
+  deleteNotificationSchedule,
   deleteShiftTemplate,
+  getMembers,
+  getNotificationSchedules,
   getShiftTemplates,
+  newNotificationSchedule,
   newShiftTemplate,
   seedDefaultShiftTemplates,
   updateUserProfile,
+  upsertNotificationSchedule,
   upsertShiftTemplate,
 } from "../store";
 import { STAMP_FONTS, stampSvg } from "../lib/stamp";
@@ -174,6 +188,7 @@ export default function ProfileSettings({
       )}
 
       {me.role === "owner" && <ShiftTemplateSettings />}
+      {me.role === "owner" && <NotificationScheduleSettings />}
 
       <div className="settings-card">
         <h3>プッシュ通知</h3>
@@ -586,6 +601,243 @@ function ShiftTemplateEditor({
       <div className="form-actions">
         <button className="ghost" onClick={onCancel}>キャンセル</button>
         <button className="primary" onClick={handleSave}>保存</button>
+      </div>
+    </div>
+  );
+}
+
+// オーナーが「毎月◯日◯時に、指定したメンバーへリマインド通知を送る」設定を管理する画面。
+// 実際の送信はEdge Function（send-scheduled-notifications）がpg_cronから定期的に呼ばれて行う。
+function NotificationScheduleSettings() {
+  const [schedules, setSchedules] = useState<NotificationSchedule[]>(() =>
+    getNotificationSchedules()
+  );
+  const [editing, setEditing] = useState<NotificationSchedule | null>(null);
+  const members = getMembers();
+
+  function refresh() {
+    setSchedules(getNotificationSchedules());
+  }
+
+  function recipientLabel(s: NotificationSchedule): string {
+    if (s.recipientMode === "all") return "すべて";
+    if (s.recipientIds.length === 0) return "（未選択）";
+    return (
+      s.recipientIds
+        .map((id) => members.find((m) => m.id === id)?.name)
+        .filter(Boolean)
+        .join("・") || "（未選択）"
+    );
+  }
+
+  return (
+    <div className="settings-card">
+      <h3>通知スケジュール</h3>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        「毎月25日 9:00にバイト全員へ、稼働可能日の入力をお願いする通知を送る」といった、
+        定期的なリマインド通知を設定できます。
+      </p>
+
+      {schedules.length === 0 ? (
+        <p className="muted small">まだ通知スケジュールがありません。</p>
+      ) : (
+        <div className="slot-list">
+          {schedules.map((s) => (
+            <div key={s.id} className="slot-row">
+              <div className="reservation-head">
+                <span className="avail-chip">{s.name || "（名前未設定）"}</span>
+                <span className={`tag ${s.enabled ? "" : "muted"}`}>
+                  {s.enabled ? "有効" : "無効"}
+                </span>
+              </div>
+              <div className="reservation-meta">
+                毎月{s.dayOfMonth}日 {String(s.hour).padStart(2, "0")}:
+                {String(s.minute).padStart(2, "0")} ／ 送信先: {recipientLabel(s)}
+              </div>
+              <div className="event-note">{s.message}</div>
+              <div className="event-actions">
+                <button className="ghost" onClick={() => setEditing(s)}>
+                  編集
+                </button>
+                <button
+                  className="ghost danger"
+                  onClick={() => {
+                    if (confirm(`通知「${s.name}」を削除しますか？`)) {
+                      deleteNotificationSchedule(s.id);
+                      refresh();
+                    }
+                  }}
+                >
+                  削除
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!editing && (
+        <button className="ghost mini" onClick={() => setEditing(newNotificationSchedule())}>
+          ＋ 通知を追加
+        </button>
+      )}
+
+      {editing && (
+        <NotificationScheduleEditor
+          value={editing}
+          members={members}
+          onCancel={() => setEditing(null)}
+          onSave={(s) => {
+            upsertNotificationSchedule(s);
+            setEditing(null);
+            refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NotificationScheduleEditor({
+  value,
+  members,
+  onCancel,
+  onSave,
+}: {
+  value: NotificationSchedule;
+  members: User[];
+  onCancel: () => void;
+  onSave: (s: NotificationSchedule) => void;
+}) {
+  const [draft, setDraft] = useState<NotificationSchedule>(value);
+
+  function set<K extends keyof NotificationSchedule>(key: K, val: NotificationSchedule[K]) {
+    setDraft((d) => ({ ...d, [key]: val }));
+  }
+
+  function toggleRecipient(id: string) {
+    setDraft((d) => ({
+      ...d,
+      recipientIds: d.recipientIds.includes(id)
+        ? d.recipientIds.filter((x) => x !== id)
+        : [...d.recipientIds, id],
+    }));
+  }
+
+  function handleSave() {
+    if (!draft.name.trim()) return alert("通知の種類の名前を入力してください");
+    if (!draft.message.trim()) return alert("通知メッセージを入力してください");
+    if (draft.recipientMode === "selected" && draft.recipientIds.length === 0)
+      return alert("送信先を1人以上選択してください");
+    onSave({ ...draft, name: draft.name.trim(), message: draft.message.trim() });
+  }
+
+  return (
+    <div className="event-form">
+      <label>
+        通知の種類の名前
+        <input
+          value={draft.name}
+          onChange={(e) => set("name", e.target.value)}
+          placeholder="例: 稼働可能日の入力リマインド"
+        />
+      </label>
+
+      <label>
+        通知メッセージ
+        <textarea
+          rows={3}
+          value={draft.message}
+          onChange={(e) => set("message", e.target.value)}
+          placeholder="例: 来月の稼働可能日の入力をお願いします。"
+        />
+      </label>
+
+      <label>送信先</label>
+      <div className="slot-picker">
+        {(["all", "selected"] as NotificationRecipientMode[]).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            className={`slot-btn ${draft.recipientMode === mode ? "on" : ""}`}
+            onClick={() => set("recipientMode", mode)}
+          >
+            {NOTIFICATION_RECIPIENT_MODE_LABEL[mode]}
+          </button>
+        ))}
+      </div>
+
+      {draft.recipientMode === "selected" && (
+        <div className="search-chips" style={{ marginTop: 8 }}>
+          {members.length === 0 ? (
+            <span className="muted small">メンバーが登録されていません。</span>
+          ) : (
+            members.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className={`pick ${draft.recipientIds.includes(m.id) ? "on" : ""}`}
+                onClick={() => toggleRecipient(m.id)}
+              >
+                {m.name}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+
+      <div className="row">
+        <label>
+          毎月
+          <select
+            value={draft.dayOfMonth}
+            onChange={(e) => set("dayOfMonth", Number(e.target.value))}
+          >
+            {NOTIFICATION_DAY_OPTIONS.map((d) => (
+              <option key={d} value={d}>
+                {d}日
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          時
+          <select value={draft.hour} onChange={(e) => set("hour", Number(e.target.value))}>
+            {NOTIFICATION_HOUR_OPTIONS.map((h) => (
+              <option key={h} value={h}>
+                {String(h).padStart(2, "0")}時
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          分
+          <select value={draft.minute} onChange={(e) => set("minute", Number(e.target.value))}>
+            {NOTIFICATION_MINUTE_OPTIONS.map((m) => (
+              <option key={m} value={m}>
+                {String(m).padStart(2, "0")}分
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={draft.enabled}
+          onChange={(e) => set("enabled", e.target.checked)}
+        />
+        <span>この通知を有効にする</span>
+      </label>
+
+      <div className="form-actions">
+        <button className="ghost" onClick={onCancel}>
+          キャンセル
+        </button>
+        <button className="primary" onClick={handleSave}>
+          保存
+        </button>
       </div>
     </div>
   );

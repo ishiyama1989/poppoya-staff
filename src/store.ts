@@ -6,6 +6,7 @@ import type {
   ChecklistItem,
   CommentTemplate,
   HandoverNote,
+  NotificationSchedule,
   PayConfirmation,
   Recipient,
   RecipientType,
@@ -44,6 +45,7 @@ import {
   syncReservations,
   syncCafeHours,
   syncShiftTemplates,
+  syncNotificationSchedules,
   deleteRemote,
 } from "./lib/supabase";
 
@@ -64,6 +66,7 @@ const KEYS = {
   checklistItems: "sns_checklist_items",
   handoverNotes: "sns_handover_notes",
   attendanceAlerts: "sns_attendance_alerts",
+  notificationSchedules: "sns_notification_schedules",
   version: "sns_schema_version",
 };
 
@@ -1065,4 +1068,46 @@ export function deleteHandoverNote(id: string): void {
 // ---- 遅刻・欠勤の連絡（UIは廃止済み。メンバー削除時のクリーンアップ用に読み取りのみ残す） ----
 export function getAttendanceAlerts(): AttendanceAlert[] {
   return read<AttendanceAlert[]>(KEYS.attendanceAlerts, []);
+}
+
+// ---- 通知スケジュール（毎月◯日◯時に指定したメンバーへリマインド通知を送る設定） ----
+// 実際の送信は Edge Function が pg_cron から定期的に呼び出して行う。
+// ここではオーナーが設定を作成・編集・削除するだけ。
+export function getNotificationSchedules(): NotificationSchedule[] {
+  return read<NotificationSchedule[]>(KEYS.notificationSchedules, []);
+}
+
+function saveNotificationSchedules(list: NotificationSchedule[]): void {
+  write(KEYS.notificationSchedules, list);
+  syncNotificationSchedules(list);
+}
+
+export function newNotificationSchedule(): NotificationSchedule {
+  return {
+    id: `notif:${uid()}`,
+    name: "",
+    message: "稼働可能日の入力をお願いします。",
+    recipientMode: "all",
+    recipientIds: [],
+    dayOfMonth: 25,
+    hour: 9,
+    minute: 0,
+    enabled: true,
+  };
+}
+
+export function upsertNotificationSchedule(schedule: NotificationSchedule): void {
+  const list = getNotificationSchedules();
+  const idx = list.findIndex((s) => s.id === schedule.id);
+  if (idx >= 0) list[idx] = schedule;
+  else list.push(schedule);
+  saveNotificationSchedules(list);
+}
+
+export function deleteNotificationSchedule(id: string): void {
+  write(
+    KEYS.notificationSchedules,
+    getNotificationSchedules().filter((s) => s.id !== id)
+  );
+  deleteRemote("notification_schedules", { id });
 }

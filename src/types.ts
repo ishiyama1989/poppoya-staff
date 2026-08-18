@@ -348,3 +348,30 @@ export interface AttendanceAlert {
   createdAt: string; // ISO日時
 }
 
+// 通知スケジュール（毎月◯日◯時に、指定したメンバーへプッシュ通知を送る設定）
+// 管理者が設定画面で追加・編集する。送信先「すべて」は自分（オーナー）以外の全員を指す。
+export type NotificationRecipientMode = "all" | "selected";
+
+export const NOTIFICATION_RECIPIENT_MODE_LABEL: Record<NotificationRecipientMode, string> = {
+  all: "すべて",
+  selected: "個別に選択",
+};
+
+export interface NotificationSchedule {
+  id: string;
+  name: string; // 通知の種類の名前（例: 稼働可能日の入力リマインド）
+  message: string;
+  recipientMode: NotificationRecipientMode;
+  recipientIds: string[]; // recipientMode === "selected" のときに使う
+  dayOfMonth: number; // 1〜28
+  hour: number; // 0〜23
+  minute: number; // 0〜59
+  enabled: boolean;
+  lastSentAt?: string; // ISO日時。同じ月に二重送信しないための判定に使う
+}
+
+// 日にちは29〜31日を除く（存在しない月があるため）
+export const NOTIFICATION_DAY_OPTIONS: number[] = Array.from({ length: 28 }, (_, i) => i + 1);
+export const NOTIFICATION_HOUR_OPTIONS: number[] = Array.from({ length: 24 }, (_, i) => i);
+export const NOTIFICATION_MINUTE_OPTIONS: number[] = [0, 15, 30, 45];
+

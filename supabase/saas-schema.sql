@@ -213,6 +213,23 @@ create table reservation_mail_errors (
   raw_body text, reason text, created_at timestamptz default now()
 );
 
+-- 通知スケジュール（毎月◯日◯時に、指定したメンバーへプッシュ通知を送る設定）。
+-- 管理者が設定画面で追加・編集する。実際の送信は send-scheduled-notifications
+-- Edge Function が pg_cron から定期的に呼ばれて行う（service roleでRLSをバイパス）。
+create table notification_schedules (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  name text not null, -- 通知の種類の名前（例: 稼働可能日の入力リマインド）
+  message text not null,
+  recipient_mode text not null default 'all', -- 'all' | 'selected'
+  recipient_ids jsonb not null default '[]', -- recipient_mode='selected'のとき対象ユーザーIDを入れる
+  day_of_month integer not null default 1, -- 1〜28（29〜31日は月によって存在しないため使わない）
+  hour integer not null default 9,
+  minute integer not null default 0,
+  enabled boolean not null default true,
+  last_sent_at timestamptz -- 二重送信防止（同じ月にもう送ったかの判定に使う）
+);
+
 -- =====================================================================
 -- RLS：自分の組織のデータだけ読み書きできるようにする
 -- =====================================================================
@@ -263,5 +280,25 @@ create policy cafe_sel on cafe_hours for select using (org_id = auth_org_id());
 create policy cafe_ins on cafe_hours for insert with check (org_id = auth_org_id());
 create policy cafe_upd on cafe_hours for update using (org_id = auth_org_id()) with check (org_id = auth_org_id());
 create policy cafe_del on cafe_hours for delete using (org_id = auth_org_id());
+
+-- notification_schedules は管理者(owner)のみ読み書き可。送信自体はEdge Functionが
+-- service roleで行うため、last_sent_at の更新はRLSの影響を受けない。
+alter table notification_schedules enable row level security;
+create policy notif_sel on notification_schedules for select using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
+);
+create policy notif_ins on notification_schedules for insert with check (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
+);
+create policy notif_upd on notification_schedules for update using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
+) with check (org_id = auth_org_id());
+create policy notif_del on notification_schedules for delete using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
+);
 
 NOTIFY pgrst, 'reload schema';
