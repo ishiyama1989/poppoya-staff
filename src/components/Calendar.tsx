@@ -1761,47 +1761,43 @@ function BulkShiftForm({
 }) {
   const [open, setOpen] = useState(false);
   const templates = useMemo(() => getShiftTemplates(), []);
-  const [templateId, setTemplateId] = useState("");
+  const [templateIds, setTemplateIds] = useState<string[]>([]);
   // 画面から種別選択・場所欄をなくしたが、type/location列自体はDB上必須のため固定値で送る
   const type: EventType = "train";
   const location = "";
-  const [start, setStart] = useState("10:00");
-  const [end, setEnd] = useState("");
 
-  function pickTemplate(id: string) {
-    setTemplateId(id);
-    const t = templates.find((t) => t.id === id);
-    if (t) {
-      setStart(t.startTime);
-      setEnd(t.endTime);
-    }
+  function toggleTemplate(id: string) {
+    setTemplateIds((cur) =>
+      cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]
+    );
   }
 
   function create() {
     if (memberIds.length === 0) return alert("メンバーを選択してください");
-    const template = templates.find((t) => t.id === templateId);
-    if (!template) return alert("業務を選択してください");
-    const title = template.name;
+    const selected = templates.filter((t) => templateIds.includes(t.id));
+    if (selected.length === 0) return alert("業務を選択してください");
     for (const date of dates) {
-      upsertEvent({
-        id: uid(),
-        date,
-        type,
-        title,
-        location,
-        assigneeIds: memberIds,
-        start,
-        end,
-        note: "",
-      });
+      for (const t of selected) {
+        upsertEvent({
+          id: uid(),
+          date,
+          type,
+          title: t.name,
+          location,
+          assigneeIds: memberIds,
+          start: t.startTime,
+          end: t.endTime,
+          note: "",
+        });
+      }
     }
     sendPushToUsers(
       memberIds,
       "新しい予定が登録されました",
-      `${dates.length}日ぶんのシフトが登録されました：「${title}」`,
+      `${dates.length}日ぶんのシフトが登録されました：${selected.map((t) => t.name).join("・")}`,
       "/"
     );
-    setTemplateId("");
+    setTemplateIds([]);
     setOpen(false);
     onDone();
   }
@@ -1816,24 +1812,24 @@ function BulkShiftForm({
         </button>
       ) : (
         <div className="event-form">
-          <label>
-            何をするか
-            <select value={templateId} onChange={(e) => pickTemplate(e.target.value)}>
-              <option value="">選択してください</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          </label>
-          <div className="row">
-            <label>
-              開始
-              <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
-            </label>
-            <label>
-              終了
-              <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
-            </label>
+          <label>何をするか（複数選択可）</label>
+          <div className="slot-picker">
+            {templates.length === 0 ? (
+              <span className="muted small">
+                シフトのコマが設定されていません。設定画面から追加してください。
+              </span>
+            ) : (
+              templates.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`slot-btn ${templateIds.includes(t.id) ? "on" : ""}`}
+                  onClick={() => toggleTemplate(t.id)}
+                >
+                  {t.name}（{t.startTime}〜{t.endTime}）
+                </button>
+              ))
+            )}
           </div>
           <p className="muted small">
             対象: {dates.length}日（{dates.slice(0, 3).map((d) => d.slice(5).replace("-", "/")).join("、")}
