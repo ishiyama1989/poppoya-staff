@@ -921,7 +921,7 @@ function DayPanel({
                     {isMyEvent
                       ? coAssignees.length > 0
                         ? `同行: ${coAssignees.join(", ")}`
-                        : "一人で参加"
+                        : me.name
                       : e.assigneeIds
                           .map((id) => users.find((u) => u.id === id)?.name)
                           .filter(Boolean)
