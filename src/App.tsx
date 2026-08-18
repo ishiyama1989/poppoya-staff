@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import {
   Calendar as CalendarIcon, Clock, Inbox, Banknote, Settings,
-  Users, BarChart2, LogOut, ClipboardList, History, Timer, type LucideIcon,
+  Users, BarChart2, LogOut, ClipboardList, History, type LucideIcon,
 } from "lucide-react";
 import { ROLE_LABEL, type User } from "./types";
 import {
@@ -10,7 +10,6 @@ import {
   pendingEventApprovalsForUser,
   pendingRequestsForUser,
   pendingRequestsSentByUser,
-  todaysAttendanceAlerts,
 } from "./store";
 import Calendar from "./components/Calendar";
 import AvailabilityView from "./components/Availability";
@@ -21,7 +20,6 @@ import Requests from "./components/Requests";
 import MyPay from "./components/MyPay";
 import WorkHistory from "./components/WorkHistory";
 import ProfileSettings from "./components/ProfileSettings";
-import TimeClock from "./components/TimeClock";
 
 type Tab =
   | "calendar"
@@ -33,8 +31,7 @@ type Tab =
   | "members"
   | "payments"
   | "tasks"
-  | "history"
-  | "timeclock";
+  | "history";
 
 export default function App({
   me,
@@ -57,14 +54,8 @@ export default function App({
   const payCount = isOwner ? 0 : pendingEventApprovalsForUser(user.id).length;
   const taskCount = isOwner ? pendingRequestsSentByUser(user.id) : 0;
   const awaitingCount = isOwner ? countAwaitingAdmin() : 0;
-  const attendanceAlertCount = isOwner ? todaysAttendanceAlerts().length : 0;
   const tabs: { key: Tab; label: string; icon: LucideIcon; ownerOnly?: boolean; memberOnly?: boolean }[] = [
     { key: "calendar", label: "カレンダー", icon: CalendarIcon },
-    {
-      key: "timeclock",
-      label: `出退勤${attendanceAlertCount > 0 ? `（${attendanceAlertCount}）` : ""}`,
-      icon: Timer,
-    },
     { key: "availability", label: "稼働日設定", icon: Clock, memberOnly: true },
     {
       key: "requests",
@@ -138,7 +129,6 @@ export default function App({
             onOpenPayments={() => setTab("payments")}
           />
         )}
-        {tab === "timeclock" && <TimeClock me={user} />}
         {tab === "availability" && !isOwner && <AvailabilityView me={user} />}
         {tab === "requests" && !isOwner && <Requests me={user} />}
         {tab === "mypay" && !isOwner && <MyPay me={user} />}

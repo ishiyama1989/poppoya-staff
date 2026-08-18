@@ -143,33 +143,14 @@ export const EVENT_APPROVAL_STATUS_LABEL: Record<EventApprovalStatus, string> = 
   rejected: "却下",
 };
 
-// メンバーの空き状況
-// 時間帯（1日 / 午前 / 午後 / 夕方 / 夜）を複数選択 + コメント
-export type AvailSlot = "allday" | "morning" | "afternoon" | "evening" | "night";
-
+// メンバーの空き状況。対応できる業務（シフトのコマ）を複数選択 + コメント。
+// slots には ShiftTemplate.id を保存する。
 export interface Availability {
   userId: string;
   date: string; // "YYYY-MM-DD"
-  slots: AvailSlot[];
+  slots: string[];
   comment: string;
 }
-
-export const SLOT_LABEL: Record<AvailSlot, string> = {
-  allday: "1日",
-  morning: "午前",
-  afternoon: "午後",
-  evening: "夕方",
-  night: "夜",
-};
-
-// 表示・選択の順番
-export const SLOT_ORDER: AvailSlot[] = [
-  "allday",
-  "morning",
-  "afternoon",
-  "evening",
-  "night",
-];
 
 // コメントの定型文（ユーザーごとに作成・使い回し）
 export interface CommentTemplate {

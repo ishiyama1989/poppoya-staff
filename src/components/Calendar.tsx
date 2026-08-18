@@ -11,7 +11,6 @@ import {
   GUEST_COUNT_OPTIONS,
   STAY_COUNT_OPTIONS,
   CHECKIN_TIME_OPTIONS,
-  SLOT_LABEL,
   type CafeHours,
   type ChecklistItem,
   type EventType,
@@ -34,6 +33,7 @@ import {
   getMembers,
   getReservations,
   getShiftTemplates,
+  shiftTemplateNameById,
   eventsForUserOn,
   timeClockFor,
   clockIn,
@@ -260,7 +260,7 @@ export default function Calendar({
       if ((a.slots.length > 0 || a.comment) && nameById[a.userId])
         (map[a.date] ??= []).push({
           name: nameById[a.userId],
-          slots: a.slots.map((s) => SLOT_LABEL[s]),
+          slots: a.slots.map((s) => shiftTemplateNameById(s)),
         });
     return map;
   }, [version, users]);
@@ -322,7 +322,7 @@ export default function Calendar({
                           {avails.map((a) => (
                             <span key={a.userId}>
                               {allMembers.find((m) => m.id === a.userId)?.name}：
-                              {a.slots.map((s) => SLOT_LABEL[s]).join("・") || "—"}
+                              {a.slots.map((s) => shiftTemplateNameById(s)).join("・") || "—"}
                             </span>
                           ))}
                         </div>
@@ -827,7 +827,7 @@ function DayPanel({
                     <div key={a.userId} className="avail-member">
                       <span className="avail-chip">{member?.name ?? ""}</span>
                       <span className="avail-slots">
-                        {a.slots.map((s) => SLOT_LABEL[s]).join("・") || "—"}
+                        {a.slots.map((s) => shiftTemplateNameById(s)).join("・") || "—"}
                       </span>
                       {a.comment && <span className="avail-comment">{a.comment}</span>}
                       {member && (

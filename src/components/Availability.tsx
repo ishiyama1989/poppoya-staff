@@ -1,17 +1,12 @@
 import { useMemo, useState } from "react";
-import {
-  SLOT_LABEL,
-  SLOT_ORDER,
-  type AvailSlot,
-  type CommentTemplate,
-  type User,
-} from "../types";
+import type { CommentTemplate, User } from "../types";
 import {
   addCommentTemplate,
   deleteCommentTemplate,
   getAvailability,
   getAvailabilityFor,
   getCommentTemplates,
+  getShiftTemplates,
   setAvailability,
 } from "../store";
 import { WEEKDAYS, monthGrid, todayStr, ymd } from "../lib/date";
@@ -25,9 +20,15 @@ export default function AvailabilityView({ me }: { me: User }) {
   const [version, setVersion] = useState(0);
 
   const grid = useMemo(() => monthGrid(year, month), [year, month]);
+  const templates = useMemo(() => getShiftTemplates(), [version]);
+  const templateNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const t of templates) map[t.id] = t.name;
+    return map;
+  }, [templates]);
   // 自分の登録を日付ごとに引けるようにする
   const byDate = useMemo(() => {
-    const map: Record<string, { slots: AvailSlot[]; comment: string }> = {};
+    const map: Record<string, { slots: string[]; comment: string }> = {};
     for (const a of getAvailability())
       if (a.userId === me.id) map[a.date] = { slots: a.slots, comment: a.comment };
     return map;
@@ -44,7 +45,7 @@ export default function AvailabilityView({ me }: { me: User }) {
       <div className="section-head">
         <h2>稼働日設定</h2>
         <p className="muted">
-          日付をクリックして、空いている時間帯（1日・午前・午後・夕方・夜）とコメントを登録します。
+          日付をクリックして、対応できる業務とコメントを登録します。
         </p>
       </div>
 
@@ -78,7 +79,7 @@ export default function AvailabilityView({ me }: { me: User }) {
               <span className="avail-day">{d.getDate()}</span>
               {on && (
                 <span className="avail-tags">
-                  {rec.slots.map((s) => SLOT_LABEL[s]).join("・")}
+                  {rec.slots.map((s) => templateNameById[s] ?? s).join("・")}
                   {rec.comment && " 💬"}
                 </span>
               )}
@@ -113,27 +114,22 @@ function SlotEditor({
 }: {
   date: string;
   userId: string;
-  initial: { slots: AvailSlot[]; comment: string } | null;
+  initial: { slots: string[]; comment: string } | null;
   onClose: () => void;
-  onSave: (slots: AvailSlot[], comment: string) => void;
+  onSave: (slots: string[], comment: string) => void;
 }) {
-  const [slots, setSlots] = useState<AvailSlot[]>(initial?.slots ?? []);
+  const [slots, setSlots] = useState<string[]>(initial?.slots ?? []);
   const [comment, setComment] = useState(initial?.comment ?? "");
   const [templates, setTemplates] = useState<CommentTemplate[]>(() =>
     getCommentTemplates(userId)
   );
   const [newTemplate, setNewTemplate] = useState("");
+  const shiftTemplates = useMemo(() => getShiftTemplates(), []);
 
-  function toggle(slot: AvailSlot) {
-    setSlots((cur) => {
-      if (slot === "allday") {
-        // 「1日」を選んだら他は解除。もう一度押すと全解除
-        return cur.includes("allday") ? [] : ["allday"];
-      }
-      // 時間帯を選んだら「1日」は解除
-      const base = cur.filter((s) => s !== "allday");
-      return base.includes(slot) ? base.filter((s) => s !== slot) : [...base, slot];
-    });
+  function toggle(templateId: string) {
+    setSlots((cur) =>
+      cur.includes(templateId) ? cur.filter((s) => s !== templateId) : [...cur, templateId]
+    );
   }
 
   // 定型文をクリックでメモへ挿入（既に文字があれば改行して追記）
@@ -166,18 +162,22 @@ function SlotEditor({
 
         <label>空いている時間帯（複数選択可）</label>
         <div className="slot-picker">
-          {SLOT_ORDER.map((s) => (
-            <button
-              key={s}
-              type="button"
-              className={`slot-btn ${slots.includes(s) ? "on" : ""} ${
-                s === "allday" ? "allday" : ""
-              }`}
-              onClick={() => toggle(s)}
-            >
-              {SLOT_LABEL[s]}
-            </button>
-          ))}
+          {shiftTemplates.length === 0 ? (
+            <span className="muted small">
+              シフトのコマが設定されていません。設定画面から追加してください。
+            </span>
+          ) : (
+            shiftTemplates.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={`slot-btn ${slots.includes(t.id) ? "on" : ""}`}
+                onClick={() => toggle(t.id)}
+              >
+                {t.name}（{t.startTime}〜{t.endTime}）
+              </button>
+            ))
+          )}
         </div>
 
         <label style={{ marginTop: 16 }}>

@@ -1,7 +1,6 @@
 import type {
   AppRequest,
   AttendanceAlert,
-  AttendanceAlertKind,
   Availability,
   CafeHours,
   ChecklistItem,
@@ -42,7 +41,6 @@ import {
   syncTimeClocks,
   syncChecklistItems,
   syncHandoverNotes,
-  syncAttendanceAlerts,
   syncReservations,
   syncCafeHours,
   syncShiftTemplates,
@@ -884,6 +882,11 @@ export function getShiftTemplates(): ShiftTemplate[] {
   );
 }
 
+// コマIDから業務名を引く（稼働可能日の表示などで使う）
+export function shiftTemplateNameById(id: string): string {
+  return getShiftTemplates().find((t) => t.id === id)?.name ?? id;
+}
+
 function saveShiftTemplates(list: ShiftTemplate[]): void {
   write(KEYS.shiftTemplates, list);
   syncShiftTemplates(list);
@@ -1059,36 +1062,7 @@ export function deleteHandoverNote(id: string): void {
   deleteRemote("handover_notes", { id });
 }
 
-// ---- 遅刻・欠勤の連絡 ----
+// ---- 遅刻・欠勤の連絡（UIは廃止済み。メンバー削除時のクリーンアップ用に読み取りのみ残す） ----
 export function getAttendanceAlerts(): AttendanceAlert[] {
   return read<AttendanceAlert[]>(KEYS.attendanceAlerts, []);
-}
-
-function saveAttendanceAlerts(list: AttendanceAlert[]): void {
-  write(KEYS.attendanceAlerts, list);
-  syncAttendanceAlerts(list);
-}
-
-export function reportAttendanceAlert(
-  userId: string,
-  kind: AttendanceAlertKind,
-  note: string
-): AttendanceAlert {
-  const alert: AttendanceAlert = {
-    id: uid(),
-    userId,
-    date: today(),
-    kind,
-    note: note.trim(),
-    createdAt: new Date().toISOString(),
-  };
-  saveAttendanceAlerts([...getAttendanceAlerts(), alert]);
-  return alert;
-}
-
-export function todaysAttendanceAlerts(): AttendanceAlert[] {
-  const t = today();
-  return getAttendanceAlerts()
-    .filter((a) => a.date === t)
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }

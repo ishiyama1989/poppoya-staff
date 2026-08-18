@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import { SLOT_LABEL, type Availability } from "../types";
-import { getAvailability, getMembers } from "../store";
+import type { Availability } from "../types";
+import { getAvailability, getMembers, getShiftTemplates } from "../store";
 import { WEEKDAYS, monthGrid, todayStr, ymd } from "../lib/date";
 
 // オーナーが、メンバーの稼働日を検索する画面
@@ -9,6 +9,11 @@ import { WEEKDAYS, monthGrid, todayStr, ymd } from "../lib/date";
 export default function AvailabilitySearch() {
   const members = useMemo(() => getMembers(), []);
   const availability = useMemo(() => getAvailability(), []);
+  const templateNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const t of getShiftTemplates()) map[t.id] = t.name;
+    return map;
+  }, []);
 
   const [selected, setSelected] = useState<string[]>([]);
   const now = new Date();
@@ -104,7 +109,7 @@ export default function AvailabilitySearch() {
                       return (
                         <span key={id} className="match-member">
                           {name}：
-                          {a?.slots.map((s) => SLOT_LABEL[s]).join("・") || "—"}
+                          {a?.slots.map((s) => templateNameById[s] ?? s).join("・") || "—"}
                           {a?.comment ? ` 💬${a.comment}` : ""}
                         </span>
                       );
