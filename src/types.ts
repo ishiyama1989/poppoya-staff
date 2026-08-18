@@ -251,13 +251,14 @@ export const GUEST_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 // 過去の宿泊回数プルダウンの選択肢（0=今回が初めて、10=10回以上）
 export const STAY_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-// チェックイン時刻の選択肢。宿の受け入れ開始が16:00のため、それ以前は選べない。
+// チェックイン時刻の選択肢。受け入れが16:00〜22:00のため、それ以外の時間は選べない。
 export const CHECKIN_TIME_OPTIONS: string[] = (() => {
   const list: string[] = [];
-  for (let h = 16; h <= 23; h++) {
+  for (let h = 16; h <= 21; h++) {
     list.push(`${String(h).padStart(2, "0")}:00`);
     list.push(`${String(h).padStart(2, "0")}:30`);
   }
+  list.push("22:00");
   return list;
 })();
 
