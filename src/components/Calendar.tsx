@@ -1760,22 +1760,34 @@ function BulkShiftForm({
   onDone: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
+  const templates = useMemo(() => getShiftTemplates(), []);
+  const [templateId, setTemplateId] = useState("");
   // 画面から種別選択・場所欄をなくしたが、type/location列自体はDB上必須のため固定値で送る
   const type: EventType = "train";
   const location = "";
   const [start, setStart] = useState("10:00");
   const [end, setEnd] = useState("");
 
+  function pickTemplate(id: string) {
+    setTemplateId(id);
+    const t = templates.find((t) => t.id === id);
+    if (t) {
+      setStart(t.startTime);
+      setEnd(t.endTime);
+    }
+  }
+
   function create() {
     if (memberIds.length === 0) return alert("メンバーを選択してください");
-    if (!title.trim()) return alert("内容を入力してください");
+    const template = templates.find((t) => t.id === templateId);
+    if (!template) return alert("業務を選択してください");
+    const title = template.name;
     for (const date of dates) {
       upsertEvent({
         id: uid(),
         date,
         type,
-        title: title.trim(),
+        title,
         location,
         assigneeIds: memberIds,
         start,
@@ -1786,10 +1798,10 @@ function BulkShiftForm({
     sendPushToUsers(
       memberIds,
       "新しい予定が登録されました",
-      `${dates.length}日ぶんのシフトが登録されました：「${title.trim()}」`,
+      `${dates.length}日ぶんのシフトが登録されました：「${title}」`,
       "/"
     );
-    setTitle("");
+    setTemplateId("");
     setOpen(false);
     onDone();
   }
@@ -1806,11 +1818,12 @@ function BulkShiftForm({
         <div className="event-form">
           <label>
             何をするか
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="例: 客室清掃シフト"
-            />
+            <select value={templateId} onChange={(e) => pickTemplate(e.target.value)}>
+              <option value="">選択してください</option>
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
           </label>
           <div className="row">
             <label>
