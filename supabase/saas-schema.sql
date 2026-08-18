@@ -24,6 +24,8 @@ create table profiles (
   receipt_name text,
   postal_code text, address text, phone text, email text,
   stamp_text text, stamp_shape text, stamp_orientation text, stamp_font text,
+  shift_reminder_enabled boolean not null default true,
+  shift_reminder_days_before integer not null default 1,
   created_at timestamptz default now()
 );
 
@@ -230,6 +232,15 @@ create table notification_schedules (
   last_sent_at timestamptz -- 二重送信防止（同じ月にもう送ったかの判定に使う）
 );
 
+-- シフト前通知（メンバー本人の設定）を「予定ID×ユーザーID」単位で送信済み管理する。
+-- クライアントからは触らず、send-scheduled-notifications がservice roleでのみ読み書きする。
+create table shift_reminder_log (
+  event_id text not null,
+  user_id uuid not null,
+  sent_at timestamptz not null default now(),
+  primary key (event_id, user_id)
+);
+
 -- =====================================================================
 -- RLS：自分の組織のデータだけ読み書きできるようにする
 -- =====================================================================
@@ -300,5 +311,9 @@ create policy notif_del on notification_schedules for delete using (
   org_id = auth_org_id()
   and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
 );
+
+-- shift_reminder_log はポリシーなしでRLSを有効化するだけ（誰からも読み書きできない）。
+-- Edge Functionはservice roleで動くためRLSごと素通りする。
+alter table shift_reminder_log enable row level security;
 
 NOTIFY pgrst, 'reload schema';

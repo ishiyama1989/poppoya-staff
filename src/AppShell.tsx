@@ -29,6 +29,8 @@ function toUser(p: Profile): User {
     phone: p.phone,
     email: p.email,
     stamp: p.stamp,
+    shiftReminderEnabled: p.shiftReminderEnabled,
+    shiftReminderDaysBefore: p.shiftReminderDaysBefore,
   };
 }
 

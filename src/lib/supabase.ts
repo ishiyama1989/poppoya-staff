@@ -399,6 +399,8 @@ const toDbProfile = (u: User) => ({
   stamp_shape: u.stamp?.shape ?? null,
   stamp_orientation: u.stamp?.orientation ?? null,
   stamp_font: u.stamp?.font ?? null,
+  shift_reminder_enabled: u.shiftReminderEnabled ?? true,
+  shift_reminder_days_before: u.shiftReminderDaysBefore ?? 1,
 })
 
 const fromDbProfile = (r: any): User => ({
@@ -420,6 +422,8 @@ const fromDbProfile = (r: any): User => ({
         font: r.stamp_font ?? "mincho",
       }
     : undefined,
+  shiftReminderEnabled: r.shift_reminder_enabled ?? true,
+  shiftReminderDaysBefore: r.shift_reminder_days_before ?? 1,
 })
 
 // プロフィール更新（自分 or 同組織のメンバー）。upsertではなくupdateでRLSを通す。

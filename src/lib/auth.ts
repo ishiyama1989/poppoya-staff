@@ -18,6 +18,8 @@ export interface Profile {
     orientation: "vertical" | "horizontal";
     font: "mincho" | "gothic" | "maru" | "kaisho";
   };
+  shiftReminderEnabled?: boolean;
+  shiftReminderDaysBefore?: number;
 }
 
 export interface Org {
@@ -97,6 +99,8 @@ export async function getMyProfile(): Promise<Profile | null> {
           font: data.stamp_font ?? "mincho",
         }
       : undefined,
+    shiftReminderEnabled: data.shift_reminder_enabled ?? true,
+    shiftReminderDaysBefore: data.shift_reminder_days_before ?? 1,
   };
 }
 

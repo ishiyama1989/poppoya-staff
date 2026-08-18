@@ -158,6 +158,8 @@ export function updateUserProfile(
     phone?: string;
     email?: string;
     stamp?: User["stamp"];
+    shiftReminderEnabled?: boolean;
+    shiftReminderDaysBefore?: number;
   }
 ): User | null {
   let updated: User | null = null;
@@ -172,6 +174,8 @@ export function updateUserProfile(
         phone: fields.phone?.trim() || undefined,
         email: fields.email?.trim() || undefined,
         stamp: fields.stamp,
+        shiftReminderEnabled: fields.shiftReminderEnabled,
+        shiftReminderDaysBefore: fields.shiftReminderDaysBefore,
       };
       return updated;
     })

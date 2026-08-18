@@ -33,7 +33,15 @@ export interface User {
   phone?: string;
   email?: string;
   stamp?: StampConfig;
+  // シフト前日通知（メンバー本人が設定。未設定は有効・1日前扱い）
+  shiftReminderEnabled?: boolean;
+  shiftReminderDaysBefore?: number;
 }
+
+// シフト前通知の「何日前」の選択肢（0=当日、7日前まで）
+export const SHIFT_REMINDER_DAYS_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7];
+export const DEFAULT_SHIFT_REMINDER_ENABLED = true;
+export const DEFAULT_SHIFT_REMINDER_DAYS_BEFORE = 1;
 
 // 予定（いつ・どこで・誰が・何を）
 // 業務場所ごとに色分けするため、種別は場所名で持つ

@@ -14,6 +14,7 @@ import {
   NOTIFICATION_HOUR_OPTIONS,
   NOTIFICATION_MINUTE_OPTIONS,
   NOTIFICATION_RECIPIENT_MODE_LABEL,
+  SHIFT_REMINDER_DAYS_OPTIONS,
   SHIFT_TIMINGS,
   SHIFT_TIMING_LABEL,
 } from "../types";
@@ -85,6 +86,9 @@ export default function ProfileSettings({
   );
   const [saved, setSaved] = useState(false);
 
+  const [reminderEnabled, setReminderEnabled] = useState(me.shiftReminderEnabled ?? true);
+  const [reminderDaysBefore, setReminderDaysBefore] = useState(me.shiftReminderDaysBefore ?? 1);
+
   const [pwCurrent, setPwCurrent] = useState("");
   const [pwNext, setPwNext] = useState("");
   const [pwNext2, setPwNext2] = useState("");
@@ -147,6 +151,8 @@ export default function ProfileSettings({
               font: stampFont,
             }
           : undefined,
+      shiftReminderEnabled: reminderEnabled,
+      shiftReminderDaysBefore: reminderDaysBefore,
     });
     if (updated) {
       onUpdated(updated);
@@ -221,6 +227,41 @@ export default function ProfileSettings({
           </p>
         )}
       </div>
+
+      {me.role !== "owner" && (
+        <div className="settings-card">
+          <h3>シフト前通知</h3>
+          <p className="muted small" style={{ marginTop: 0 }}>
+            シフトの開始が近づいたら「明日はシフトが入っています」のような通知を送ります。
+          </p>
+          <label className="check-line">
+            <input
+              type="checkbox"
+              checked={reminderEnabled}
+              onChange={(e) => setReminderEnabled(e.target.checked)}
+            />
+            シフト前通知を受け取る
+          </label>
+          {reminderEnabled && (
+            <label style={{ marginTop: 10 }}>
+              何日前に通知するか
+              <select
+                value={reminderDaysBefore}
+                onChange={(e) => setReminderDaysBefore(Number(e.target.value))}
+              >
+                {SHIFT_REMINDER_DAYS_OPTIONS.map((d) => (
+                  <option key={d} value={d}>
+                    {d === 0 ? "当日" : `${d}日前`}
+                  </option>
+                ))}
+              </select>
+              <p className="muted small" style={{ marginTop: 4 }}>
+                シフトの開始時刻と同じ時刻に通知されます（例: 1日前ならちょうど24時間前）
+              </p>
+            </label>
+          )}
+        </div>
+      )}
 
       {me.role !== "owner" && (
         <div className="settings-card">
