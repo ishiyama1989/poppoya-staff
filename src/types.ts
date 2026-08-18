@@ -245,8 +245,8 @@ export const DEFAULT_CAFE_CLOSE_TIME = "17:00";
 // （LOCOMO CAFE は宿泊ではなく業務場所なので、ここには含めない）
 export const ROOM_TYPES = ["トレインルーム", "レトロルーム"] as const;
 
-// 人数プルダウンの選択肢（0〜5人）
-export const GUEST_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5];
+// 人数プルダウンの選択肢（0〜10人）
+export const GUEST_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 // 過去の宿泊回数プルダウンの選択肢（0=今回が初めて、10=10回以上）
 export const STAY_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
