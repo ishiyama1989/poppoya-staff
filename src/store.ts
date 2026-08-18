@@ -938,6 +938,13 @@ export function timeClockFor(userId: string, date: string): TimeClock | null {
   );
 }
 
+// その日にその人が担当する予定（シフトが入っている日だけ打刻できるようにするため）
+export function eventsForUserOn(userId: string, date: string): ScheduleEvent[] {
+  return getEvents().filter(
+    (e) => e.date === date && e.assigneeIds.includes(userId)
+  );
+}
+
 // 自分の直近の打刻履歴（新しい順）
 export function timeClocksForUser(userId: string, limit = 14): TimeClock[] {
   return getTimeClocks()

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Clock as ClockIcon, ClipboardCheck, MapPin, User as UserIcon, Search } from "lucide-react";
 import {
   EVENT_TYPE_COLOR,
@@ -34,6 +34,10 @@ import {
   getMembers,
   getReservations,
   getShiftTemplates,
+  eventsForUserOn,
+  timeClockFor,
+  clockIn,
+  clockOut,
   getCafeHours,
   cafeHoursOn,
   upsertCafeHours,
@@ -273,6 +277,8 @@ export default function Calendar({
   return (
     <div className="cal-layout">
       <div className="cal-main full">
+        {!isOwner && <TodayPunchPanel me={me} onChange={refresh} />}
+
         {isOwner && (
           <div className="search-panel">
             <div className="search-panel-head">
@@ -589,6 +595,82 @@ export default function Calendar({
           onChange={refresh}
         />
       )}
+    </div>
+  );
+}
+
+function punchTime(iso?: string): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+// カレンダー上部の打刻パネル。シフトが入っている日だけ表示し、現在時刻と打刻時刻を出す。
+function TodayPunchPanel({ me, onChange }: { me: User; onChange: () => void }) {
+  const today = todayStr();
+  const [now, setNow] = useState(() => new Date());
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const myShifts = useMemo(() => eventsForUserOn(me.id, today), [me.id, today, version]);
+  const clock = useMemo(() => timeClockFor(me.id, today), [me.id, today, version]);
+
+  // シフトが入っていない日は打刻の必要がないので出さない
+  if (myShifts.length === 0) return null;
+
+  const clockLabel = `${String(now.getHours()).padStart(2, "0")}:${String(
+    now.getMinutes()
+  ).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+
+  return (
+    <div className="punch-panel">
+      <div className="punch-head">
+        <ClockIcon size={14} strokeWidth={2} />
+        <span className="punch-now">{clockLabel}</span>
+        <span className="punch-date">{today.replace(/-/g, "/")}</span>
+      </div>
+
+      <div className="punch-shifts">
+        {myShifts.map((e) => (
+          <span key={e.id} className="punch-shift">
+            {e.title} {e.start}–{e.end || "未定"}
+          </span>
+        ))}
+      </div>
+
+      <div className="punch-status">
+        <span>出勤 <strong>{punchTime(clock?.clockIn)}</strong></span>
+        <span>退勤 <strong>{punchTime(clock?.clockOut)}</strong></span>
+      </div>
+
+      <div className="clock-actions">
+        <button
+          className="primary"
+          disabled={!!clock?.clockIn}
+          onClick={() => {
+            clockIn(me.id);
+            setVersion((v) => v + 1);
+            onChange();
+          }}
+        >
+          出勤する
+        </button>
+        <button
+          className="ghost"
+          disabled={!clock?.clockIn || !!clock?.clockOut}
+          onClick={() => {
+            clockOut(me.id);
+            setVersion((v) => v + 1);
+            onChange();
+          }}
+        >
+          退勤する
+        </button>
+      </div>
     </div>
   );
 }
