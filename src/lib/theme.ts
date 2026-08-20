@@ -16,7 +16,14 @@ export const THEME_OPTIONS: ThemeOption[] = [
 
 const DEFAULT_THEME = "coral";
 
-// <html data-theme="..."> にセットし、index.cssの上書きブロックを適用する
+// <html data-theme="..."> にセットし、index.cssの上書きブロックを適用する。
+// あわせて <meta name="theme-color"> も更新し、PWAとして開いたときの
+// ウィンドウの帯（macOSのタイトルバー・スマホのアドレスバー等）も同じ色にする。
 export function applyTheme(theme: string | undefined | null): void {
-  document.documentElement.setAttribute("data-theme", theme || DEFAULT_THEME);
+  const id = theme || DEFAULT_THEME;
+  document.documentElement.setAttribute("data-theme", id);
+
+  const color = THEME_OPTIONS.find((t) => t.id === id)?.swatch ?? THEME_OPTIONS[0].swatch;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", color);
 }
