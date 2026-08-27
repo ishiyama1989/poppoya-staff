@@ -4,6 +4,7 @@ import type {
   Availability,
   CafeHours,
   CafeOrder,
+  CafeProduct,
   ChecklistItem,
   CommentTemplate,
   HandoverNote,
@@ -46,6 +47,7 @@ import {
   syncReservations,
   syncCafeHours,
   syncCafeOrders,
+  syncCafeProducts,
   syncShiftTemplates,
   syncNotificationSchedules,
   deleteRemote,
@@ -64,6 +66,7 @@ const KEYS = {
   reservations: "sns_reservations",
   cafeHours: "sns_cafe_hours",
   cafeOrders: "sns_cafe_orders",
+  cafeProducts: "sns_cafe_products",
   shiftTemplates: "sns_shift_templates",
   timeClocks: "sns_time_clocks",
   checklistItems: "sns_checklist_items",
@@ -958,6 +961,45 @@ export function toggleCafeOrderDone(id: string): void {
 export function deleteCafeOrder(id: string): void {
   write(KEYS.cafeOrders, getCafeOrders().filter((o) => o.id !== id));
   deleteRemote("cafe_orders", { id });
+}
+
+// ---- LOCOMO CAFEの発注商品マスタ ----
+export function getCafeProducts(): CafeProduct[] {
+  return read<CafeProduct[]>(KEYS.cafeProducts, []).sort(
+    (a, b) => a.sortOrder - b.sortOrder
+  );
+}
+
+function saveCafeProducts(list: CafeProduct[]): void {
+  write(KEYS.cafeProducts, list);
+  syncCafeProducts(list);
+}
+
+export function addCafeProduct(input: {
+  name: string;
+  supplier: string;
+  quantity: number;
+  unit: CafeProduct["unit"];
+  leadDays: number;
+}): CafeProduct {
+  const list = getCafeProducts();
+  const max = list.reduce((m, p) => Math.max(m, p.sortOrder), 0);
+  const product: CafeProduct = {
+    id: `cafeproduct:${uid()}`,
+    name: input.name.trim(),
+    supplier: input.supplier.trim(),
+    quantity: input.quantity,
+    unit: input.unit,
+    leadDays: input.leadDays,
+    sortOrder: max + 1,
+  };
+  saveCafeProducts([...list, product]);
+  return product;
+}
+
+export function deleteCafeProduct(id: string): void {
+  write(KEYS.cafeProducts, getCafeProducts().filter((p) => p.id !== id));
+  deleteRemote("cafe_products", { id });
 }
 
 // ---- シフトのコマ（勤務パターン）。管理者が設定画面で編集する ----

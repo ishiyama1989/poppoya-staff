@@ -5,6 +5,7 @@ import type {
   Availability,
   CafeHours,
   CafeOrder,
+  CafeProduct,
   ChecklistItem,
   CommentTemplate,
   EventApproval,
@@ -361,6 +362,26 @@ const fromDbCafeOrder = (o: any): CafeOrder => ({
   doneAt: o.done_at ?? undefined,
 })
 
+const toDbCafeProduct = (p: CafeProduct) => ({
+  id: p.id,
+  name: p.name,
+  supplier: p.supplier,
+  quantity: p.quantity,
+  unit: p.unit,
+  lead_days: p.leadDays,
+  sort_order: p.sortOrder,
+})
+
+const fromDbCafeProduct = (p: any): CafeProduct => ({
+  id: p.id,
+  name: p.name ?? '',
+  supplier: p.supplier ?? '',
+  quantity: p.quantity ?? 1,
+  unit: p.unit === '個' ? '個' : 'g',
+  leadDays: p.lead_days ?? 1,
+  sortOrder: p.sort_order ?? 0,
+})
+
 const toDbShiftTemplate = (t: ShiftTemplate) => ({
   id: t.id,
   name: t.name,
@@ -543,6 +564,10 @@ export function syncCafeOrders(list: CafeOrder[]): void {
   upsertRows('cafe_orders', list, toDbCafeOrder, 'id').catch(() => {})
 }
 
+export function syncCafeProducts(list: CafeProduct[]): void {
+  upsertRows('cafe_products', list, toDbCafeProduct, 'id').catch(() => {})
+}
+
 export function syncShiftTemplates(list: ShiftTemplate[]): void {
   upsertRows('shift_templates', list, toDbShiftTemplate, 'id').catch(() => {})
 }
@@ -557,7 +582,7 @@ export async function loadOrgData(): Promise<void> {
     profiles, events, avail, requests, pay, recipients,
     templates, approvals, reservations,
     timeClocks, checklistItems, handoverNotes, attendanceAlerts,
-    cafeHours, shiftTemplates, notificationSchedules, cafeOrders,
+    cafeHours, shiftTemplates, notificationSchedules, cafeOrders, cafeProducts,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
     supabase.from('schedule_events').select('*'),
@@ -576,6 +601,7 @@ export async function loadOrgData(): Promise<void> {
     supabase.from('shift_templates').select('*'),
     supabase.from('notification_schedules').select('*'),
     supabase.from('cafe_orders').select('*'),
+    supabase.from('cafe_products').select('*'),
   ])
   // 読み込みに失敗したテーブルは上書きせず前回の内容を残し、原因を記録する。
   // （黙って空にすると、画面上はデータが消えたようにしか見えないため）
@@ -607,6 +633,7 @@ export async function loadOrgData(): Promise<void> {
   put('sns_shift_templates', shiftTemplates, fromDbShiftTemplate)
   put('sns_notification_schedules', notificationSchedules, fromDbNotificationSchedule)
   put('sns_cafe_orders', cafeOrders, fromDbCafeOrder)
+  put('sns_cafe_products', cafeProducts, fromDbCafeProduct)
 }
 
 // ---- Hydration: Supabase → localStorage on app start（旧・単一テナント用。SaaS版では未使用） ----

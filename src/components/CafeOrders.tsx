@@ -1,23 +1,35 @@
 import { useState } from "react";
-import { CAFE_ORDER_STATUS_LABEL, type User } from "../types";
+import {
+  CAFE_ORDER_STATUS_LABEL,
+  CAFE_PRODUCT_UNITS,
+  CAFE_PRODUCT_UNIT_LABEL,
+  type CafeProduct,
+  type CafeProductUnit,
+  type User,
+} from "../types";
 import {
   addCafeOrder,
+  addCafeProduct,
   deleteCafeOrder,
+  deleteCafeProduct,
   getCafeOrders,
+  getCafeProducts,
   getUsers,
   toggleCafeOrderDone,
 } from "../store";
 import { sendPushToUsers } from "../lib/push";
 
 // LOCOMO CAFEの発注（カフェ管理人 → オーナー）
-// カフェ管理人は発注を送るだけ、オーナーは届いた発注を確認して対応済みにする。
+// カフェ管理人・オーナーで発注できる商品を登録しておき、
+// カフェ管理人はその中から数量を選んで発注する。
 export default function CafeOrders({ me }: { me: User }) {
   const [version, setVersion] = useState(0);
   const users = getUsers();
   const orders = getCafeOrders();
+  const products = getCafeProducts();
   const isOwner = me.role === "owner";
 
-  const [items, setItems] = useState("");
+  const [counts, setCounts] = useState<Record<string, number>>({});
   const [note, setNote] = useState("");
 
   function refresh() {
@@ -25,17 +37,29 @@ export default function CafeOrders({ me }: { me: User }) {
   }
   void version;
 
+  function setCount(id: string, count: number) {
+    setCounts((cur) => ({ ...cur, [id]: Math.max(0, count) }));
+  }
+
   function send() {
-    if (!items.trim()) return alert("発注内容を入力してください");
+    const lines = products
+      .filter((p) => (counts[p.id] ?? 0) > 0)
+      .map((p) => {
+        const count = counts[p.id];
+        const total = p.quantity * count;
+        return `${p.name} ${total}${CAFE_PRODUCT_UNIT_LABEL[p.unit]}`;
+      });
+    if (lines.length === 0) return alert("発注する商品を選択してください");
+    const items = lines.join("、");
     addCafeOrder(me.id, items, note);
     const owners = users.filter((u) => u.role === "owner").map((u) => u.id);
     sendPushToUsers(
       owners,
       "カフェの発注が届きました",
-      `${me.name}さんから発注: ${items.trim().slice(0, 40)}`,
+      `${me.name}さんから発注: ${items.slice(0, 40)}`,
       "/"
     );
-    setItems("");
+    setCounts({});
     setNote("");
     refresh();
   }
@@ -50,22 +74,45 @@ export default function CafeOrders({ me }: { me: User }) {
         <p className="muted">
           {isOwner
             ? "カフェ管理人から届いた発注を確認し、対応したら「対応済みにする」を押してください。"
-            : "商品の仕入れなど、オーナーへ発注をお願いしたい内容を送ります。"}
+            : "登録されている商品から、発注する数量を選んで送ります。"}
         </p>
       </div>
 
+      <CafeProductSettings products={products} onChange={refresh} />
+
       {!isOwner && (
         <div className="event-form" style={{ marginBottom: 20 }}>
-          <label>
-            発注内容
-            <textarea
-              value={items}
-              onChange={(e) => setItems(e.target.value)}
-              rows={3}
-              placeholder="例: コーヒー豆 2kg、紙コップ 1箱"
-            />
-          </label>
-          <label>
+          <label>発注する商品と数量</label>
+          {products.length === 0 ? (
+            <p className="muted small">
+              まだ商品が登録されていません。上の「商品登録」から追加してください。
+            </p>
+          ) : (
+            <div className="slot-list">
+              {products.map((p) => (
+                <div
+                  key={p.id}
+                  className="slot-row"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                >
+                  <span>
+                    {p.name}（{p.quantity}
+                    {CAFE_PRODUCT_UNIT_LABEL[p.unit]}/回
+                    {p.supplier ? ` ・発注先: ${p.supplier}` : ""}
+                    {` ・${p.leadDays}日前までに発注`}）
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={counts[p.id] ?? 0}
+                    onChange={(e) => setCount(p.id, Number(e.target.value))}
+                    style={{ width: 70 }}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          <label style={{ marginTop: 10 }}>
             メモ（任意）
             <textarea
               value={note}
@@ -75,7 +122,7 @@ export default function CafeOrders({ me }: { me: User }) {
             />
           </label>
           <div className="form-actions">
-            <button className="primary" onClick={send}>
+            <button className="primary" onClick={send} disabled={products.length === 0}>
               発注を送る
             </button>
           </div>
@@ -137,6 +184,140 @@ export default function CafeOrders({ me }: { me: User }) {
               )}
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 発注できる商品の登録・削除（オーナー・カフェ管理人どちらも操作可）
+function CafeProductSettings({
+  products,
+  onChange,
+}: {
+  products: CafeProduct[];
+  onChange: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [supplier, setSupplier] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [unit, setUnit] = useState<CafeProductUnit>("g");
+  const [leadDays, setLeadDays] = useState(1);
+
+  function add() {
+    if (!name.trim()) return alert("商品名を入力してください");
+    addCafeProduct({ name, supplier, quantity, unit, leadDays });
+    setName("");
+    setSupplier("");
+    setQuantity(1);
+    setUnit("g");
+    setLeadDays(1);
+    onChange();
+  }
+
+  return (
+    <div className="settings-card" style={{ marginBottom: 20 }}>
+      <h3>商品登録</h3>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        発注できる商品をあらかじめ登録しておきます。
+      </p>
+
+      {products.length === 0 ? (
+        <p className="muted small">まだ商品が登録されていません。</p>
+      ) : (
+        <div className="slot-list">
+          {products.map((p) => (
+            <div key={p.id} className="slot-row">
+              <div className="reservation-head">
+                <span className="avail-chip">{p.name}</span>
+                <span className="tag">
+                  {p.quantity}
+                  {CAFE_PRODUCT_UNIT_LABEL[p.unit]}/回
+                </span>
+              </div>
+              <div className="reservation-meta">
+                {p.supplier && `発注先: ${p.supplier} ／ `}
+                {p.leadDays}日前までに発注
+              </div>
+              <div className="event-actions">
+                <button
+                  className="ghost danger"
+                  onClick={() => {
+                    if (confirm(`商品「${p.name}」を削除しますか？`)) {
+                      deleteCafeProduct(p.id);
+                      onChange();
+                    }
+                  }}
+                >
+                  削除
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!open ? (
+        <button className="ghost mini" onClick={() => setOpen(true)}>
+          ＋ 商品を追加
+        </button>
+      ) : (
+        <div className="event-form">
+          <label>
+            商品名
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="例: コーヒー豆"
+            />
+          </label>
+          <label>
+            発注先
+            <input
+              value={supplier}
+              onChange={(e) => setSupplier(e.target.value)}
+              placeholder="例: ○○商会"
+            />
+          </label>
+          <div className="row">
+            <label>
+              数量
+              <input
+                type="number"
+                min={1}
+                value={quantity}
+                onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
+              />
+            </label>
+            <label>
+              単位
+              <select value={unit} onChange={(e) => setUnit(e.target.value as CafeProductUnit)}>
+                {CAFE_PRODUCT_UNITS.map((u) => (
+                  <option key={u} value={u}>
+                    {CAFE_PRODUCT_UNIT_LABEL[u]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              何日前までに発注
+              <input
+                type="number"
+                min={0}
+                value={leadDays}
+                onChange={(e) => setLeadDays(Math.max(0, Number(e.target.value)))}
+              />
+            </label>
+          </div>
+          <div className="form-actions">
+            <button className="ghost" onClick={() => setOpen(false)}>
+              キャンセル
+            </button>
+            <button className="primary" onClick={add}>
+              保存
+            </button>
+          </div>
         </div>
       )}
     </div>

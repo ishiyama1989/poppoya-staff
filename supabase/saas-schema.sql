@@ -208,6 +208,18 @@ create table cafe_orders (
   done_at timestamptz
 );
 
+-- 発注できる商品のマスタ（オーナー・カフェ管理人が登録する）
+create table cafe_products (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  name text not null,
+  supplier text default '', -- 発注先
+  quantity integer not null default 1, -- 1回あたりの基本数量
+  unit text not null default 'g', -- 'g' | '個'
+  lead_days integer not null default 1, -- 何日前までに発注が必要か
+  sort_order integer not null default 0
+);
+
 -- シフトのコマ（勤務パターン）。管理者が設定画面で追加・編集できる。
 -- timing: checkin / every_morning / middle_day / checkout
 create table shift_templates (
@@ -321,6 +333,25 @@ create policy cafeorder_upd on cafe_orders for update using (
 create policy cafeorder_del on cafe_orders for delete using (
   org_id = auth_org_id()
   and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
+);
+
+-- cafe_products はオーナー・カフェ管理人が読み書き可能（発注の商品マスタ管理）。
+alter table cafe_products enable row level security;
+create policy cafeproduct_sel on cafe_products for select using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role in ('owner', 'cafe_manager'))
+);
+create policy cafeproduct_ins on cafe_products for insert with check (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role in ('owner', 'cafe_manager'))
+);
+create policy cafeproduct_upd on cafe_products for update using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role in ('owner', 'cafe_manager'))
+) with check (org_id = auth_org_id());
+create policy cafeproduct_del on cafe_products for delete using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role in ('owner', 'cafe_manager'))
 );
 
 -- notification_schedules は管理者(owner)のみ読み書き可。送信自体はEdge Functionが

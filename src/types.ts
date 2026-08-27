@@ -240,11 +240,31 @@ export const CAFE_ORDER_STATUS_LABEL: Record<CafeOrderStatus, string> = {
 export interface CafeOrder {
   id: string;
   userId: string; // 発注したカフェ管理人
-  items: string; // 発注内容（商品名・数量など）
+  items: string; // 発注内容（登録商品×数量を組み立てた文字列）
   note: string; // 補足メモ（任意）
   status: CafeOrderStatus;
   createdAt: string; // ISO日時
   doneAt?: string; // ISO日時
+}
+
+// 発注できる商品の数量単位
+export type CafeProductUnit = "g" | "個";
+
+export const CAFE_PRODUCT_UNIT_LABEL: Record<CafeProductUnit, string> = {
+  g: "g",
+  個: "個",
+};
+export const CAFE_PRODUCT_UNITS: CafeProductUnit[] = ["g", "個"];
+
+// 発注できる商品のマスタ（オーナー・カフェ管理人があらかじめ登録しておく）
+export interface CafeProduct {
+  id: string;
+  name: string; // 商品名（例: コーヒー豆）
+  supplier: string; // 発注先
+  quantity: number; // 1回あたりの基本数量
+  unit: CafeProductUnit; // g / 個
+  leadDays: number; // 何日前までに発注が必要か
+  sortOrder: number;
 }
 
 // シフトのコマ（勤務パターン）。管理者が設定画面で追加・編集できる。
