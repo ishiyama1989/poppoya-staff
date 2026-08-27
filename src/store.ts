@@ -953,6 +953,18 @@ export function addCafeOrder(
   return order;
 }
 
+// 対象のカフェ営業日・発注締切日をあとから設定/修正する
+// （スキーマ追加前に作られた発注や、締切を手直ししたい場合に使う）
+export function updateCafeOrderDeadline(
+  id: string,
+  cafeDate: string,
+  deadline: string
+): void {
+  saveCafeOrders(
+    getCafeOrders().map((o) => (o.id === id ? { ...o, cafeDate, deadline } : o))
+  );
+}
+
 // 未対応の発注を、発注締切日ごとにまとめる（カレンダー表示用）
 export function pendingCafeOrdersByDeadline(): Record<string, CafeOrder[]> {
   const map: Record<string, CafeOrder[]> = {};

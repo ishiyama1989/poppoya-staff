@@ -67,6 +67,7 @@ import {
 import { WEEKDAYS, addDays, monthGrid, todayStr, ymd } from "../lib/date";
 import { sendPushToUsers } from "../lib/push";
 import MapLinks from "./MapLinks";
+import { CafeQuickOrderForm } from "./CafeOrders";
 
 // プッシュ通知の文面に使う表示名（旧データの種別も残しておく）
 const TYPE_JP: Record<string, string> = {
@@ -610,7 +611,13 @@ export default function Calendar({
                     className="cal-reservations cal-cafe-deadline"
                     title={cafeOrderDeadlines[ds].map((o) => o.items).join("、")}
                   >
-                    📦 発注締切（{cafeOrderDeadlines[ds].length}件）
+                    📦 締切:{" "}
+                    {cafeOrderDeadlines[ds]
+                      .slice(0, 2)
+                      .map((o) => o.items)
+                      .join("、")}
+                    {cafeOrderDeadlines[ds].length > 2 &&
+                      ` 他${cafeOrderDeadlines[ds].length - 2}件`}
                   </div>
                 )}
                 <div className="cal-events">
@@ -757,6 +764,7 @@ function DayPanel({
   const [requestFormIds, setRequestFormIds] = useState<string[] | null>(null);
   const [requestingEvent, setRequestingEvent] = useState<ScheduleEvent | null>(null);
   const [editingCafeHours, setEditingCafeHours] = useState<CafeHours | null>(null);
+  const [showCafeOrderForm, setShowCafeOrderForm] = useState(false);
   const availList = availabilityOn(date).filter((a) =>
     users.some((u) => u.id === a.userId && u.role !== "owner")
   );
@@ -870,6 +878,25 @@ function DayPanel({
             </button>
           ) : (
             <span className="muted">営業なし</span>
+          )}
+
+          {dayCafeHours && me.role !== "owner" && canManageCafe && (
+            <div style={{ marginTop: 10 }}>
+              {showCafeOrderForm ? (
+                <CafeQuickOrderForm
+                  me={me}
+                  cafeDate={date}
+                  onSent={() => {
+                    setShowCafeOrderForm(false);
+                    onChange();
+                  }}
+                />
+              ) : (
+                <button className="ghost mini" onClick={() => setShowCafeOrderForm(true)}>
+                  ＋ この営業日で発注する
+                </button>
+              )}
+            </div>
           )}
         </div>
 

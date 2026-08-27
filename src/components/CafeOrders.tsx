@@ -17,6 +17,7 @@ import {
   getCafeProducts,
   getUsers,
   toggleCafeOrderDone,
+  updateCafeOrderDeadline,
   updateCafeProduct,
 } from "../store";
 import { addDays, todayStr } from "../lib/date";
@@ -38,6 +39,24 @@ export default function CafeOrders({ me }: { me: User }) {
     .filter((c) => c.date >= today)
     .map((c) => c.date)
     .sort();
+
+  // 発注済みの内容に、あとから対象日・締切日を設定/修正する（オーナーのみ）
+  const [editingDeadlineId, setEditingDeadlineId] = useState<string | null>(null);
+  const [deadlineCafeDate, setDeadlineCafeDate] = useState("");
+  const [deadlineDate, setDeadlineDate] = useState("");
+
+  function startEditDeadline(o: (typeof orders)[number]) {
+    setEditingDeadlineId(o.id);
+    setDeadlineCafeDate(o.cafeDate ?? "");
+    setDeadlineDate(o.deadline ?? "");
+  }
+
+  function saveDeadline() {
+    if (!deadlineDate) return alert("発注締切日を入力してください");
+    updateCafeOrderDeadline(editingDeadlineId!, deadlineCafeDate, deadlineDate);
+    setEditingDeadlineId(null);
+    refresh();
+  }
 
   // 入力中に桁がおかしくならないよう、数量は文字列のまま保持し
   // 送信時にだけ数値へ変換する（毎キー入力で丸めると手入力しづらくなるため）。
@@ -206,16 +225,61 @@ export default function CafeOrders({ me }: { me: User }) {
                 </div>
               )}
               <div className="req-card-title">{o.items}</div>
-              {(o.cafeDate || o.deadline) && (
+              {o.cafeDate || o.deadline ? (
                 <div className="req-card-meta">
                   {o.cafeDate && `対象日: ${o.cafeDate.replace(/-/g, "/")}`}
                   {o.cafeDate && o.deadline && " ／ "}
                   {o.deadline && `発注締切: ${o.deadline.replace(/-/g, "/")}`}
                 </div>
+              ) : (
+                isOwner && (
+                  <p className="muted small" style={{ margin: "4px 0" }}>
+                    締切が未設定です（この発注はカレンダー営業日選択の機能追加前に作られました）
+                  </p>
+                )
               )}
               {o.note && <div className="req-card-note">{o.note}</div>}
+
+              {isOwner && editingDeadlineId === o.id && (
+                <div className="event-form" style={{ marginTop: 8 }}>
+                  <label>
+                    対象のカフェ営業日（任意）
+                    <select
+                      value={deadlineCafeDate}
+                      onChange={(e) => setDeadlineCafeDate(e.target.value)}
+                    >
+                      <option value="">選択してください</option>
+                      {upcomingCafeDates.map((d) => (
+                        <option key={d} value={d}>
+                          {d.replace(/-/g, "/")}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    発注締切日
+                    <input
+                      type="date"
+                      value={deadlineDate}
+                      onChange={(e) => setDeadlineDate(e.target.value)}
+                    />
+                  </label>
+                  <div className="form-actions">
+                    <button className="ghost" onClick={() => setEditingDeadlineId(null)}>
+                      キャンセル
+                    </button>
+                    <button className="primary" onClick={saveDeadline}>
+                      保存
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {isOwner && (
                 <div className="req-card-actions">
+                  <button className="ghost" onClick={() => startEditDeadline(o)}>
+                    {o.deadline ? "締切を編集" : "締切を設定"}
+                  </button>
                   <button
                     className="ghost danger"
                     onClick={() => {
@@ -390,6 +454,105 @@ function CafeProductEditor({
         </button>
         <button className="primary" onClick={save}>
           保存
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// 特定のカフェ営業日に対して、その場で発注するための簡易フォーム。
+// カレンダーの日付パネル（LOCOMO CAFEの営業時間が登録された日）から使う。
+export function CafeQuickOrderForm({
+  me,
+  cafeDate,
+  onSent,
+}: {
+  me: User;
+  cafeDate: string;
+  onSent: () => void;
+}) {
+  const products = getCafeProducts();
+  const [counts, setCounts] = useState<Record<string, string>>({});
+  const [note, setNote] = useState("");
+
+  function setCount(id: string, value: string) {
+    setCounts((cur) => ({ ...cur, [id]: value }));
+  }
+  function countOf(id: string): number {
+    const n = Number(counts[id]);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+  function deadlineFor(p: CafeProduct): string {
+    return addDays(cafeDate, -p.leadDays);
+  }
+
+  function send() {
+    const selected = products.filter((p) => countOf(p.id) > 0);
+    if (selected.length === 0) return alert("発注する商品を選択してください");
+    const items = selected
+      .map((p) => `${p.name} ${countOf(p.id)}${CAFE_PRODUCT_UNIT_LABEL[p.unit]}`)
+      .join("、");
+    const deadline = selected.map((p) => deadlineFor(p)).sort()[0];
+    addCafeOrder(me.id, items, note, cafeDate, deadline);
+    const owners = getUsers().filter((u) => u.role === "owner").map((u) => u.id);
+    sendPushToUsers(
+      owners,
+      "カフェの発注が届きました",
+      `${me.name}さんから発注: ${items.slice(0, 40)}（${cafeDate.slice(5).replace("-", "/")}分・締切${deadline.slice(5).replace("-", "/")}）`,
+      "/"
+    );
+    setCounts({});
+    setNote("");
+    onSent();
+  }
+
+  if (products.length === 0) {
+    return (
+      <p className="muted small">
+        まだ商品が登録されていません。「カフェの発注」タブから登録してください。
+      </p>
+    );
+  }
+
+  return (
+    <div className="event-form">
+      <div className="slot-list">
+        {products.map((p) => (
+          <div
+            key={p.id}
+            className="slot-row"
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+          >
+            <span>
+              {p.name}
+              {`（${p.supplier ? `発注先: ${p.supplier} ・` : ""}締切 ${deadlineFor(p).replace(/-/g, "/")}）`}
+            </span>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={counts[p.id] ?? ""}
+                onChange={(e) => setCount(p.id, e.target.value)}
+                style={{ width: 70 }}
+              />
+              {CAFE_PRODUCT_UNIT_LABEL[p.unit]}
+            </span>
+          </div>
+        ))}
+      </div>
+      <label style={{ marginTop: 10 }}>
+        メモ（任意）
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          placeholder="例: 来週末までにお願いします"
+        />
+      </label>
+      <div className="form-actions">
+        <button className="primary" onClick={send}>
+          発注を送る
         </button>
       </div>
     </div>
