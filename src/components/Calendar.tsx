@@ -1059,12 +1059,42 @@ function DayPanel({
                     </div>
                   )}
                   {o.note && <div className="req-card-note">{o.note}</div>}
+                  {o.cancelRequested && (
+                    <p className="muted small" style={{ margin: "4px 0", color: "var(--danger)" }}>
+                      ⚠️ 取り消し依頼中です
+                      {me.role === "owner" ? "（承認すると発注が削除されます）" : ""}
+                    </p>
+                  )}
+                  {me.role === "owner" && o.cancelRequested && (
+                    <div className="event-actions">
+                      <button
+                        className="ghost"
+                        onClick={() => {
+                          rejectCancelCafeOrder(o.id);
+                          onChange();
+                        }}
+                      >
+                        依頼を却下する
+                      </button>
+                      <button
+                        className="ghost danger"
+                        onClick={() => {
+                          if (confirm("取り消しを承認して、この発注を削除しますか？")) {
+                            approveCancelCafeOrder(o.id);
+                            onChange();
+                          }
+                        }}
+                      >
+                        承認して取り消す
+                      </button>
+                    </div>
+                  )}
                   {me.role === "owner" && (
                     <div className="event-actions">
                       <button
                         className="ghost danger"
                         onClick={() => {
-                          if (confirm("この発注を取り消しますか？")) {
+                          if (confirm("この発注を削除しますか？")) {
                             deleteCafeOrder(o.id);
                             onChange();
                           }
@@ -1080,6 +1110,29 @@ function DayPanel({
                         }}
                       >
                         対応済みにする
+                      </button>
+                    </div>
+                  )}
+                  {me.role !== "owner" && o.userId === me.id && !o.cancelRequested && (
+                    <div className="event-actions">
+                      <button
+                        className="ghost danger"
+                        onClick={() => {
+                          if (!confirm("この発注の取り消しを依頼しますか？")) return;
+                          requestCancelCafeOrder(o.id);
+                          const owners = users
+                            .filter((u) => u.role === "owner")
+                            .map((u) => u.id);
+                          sendPushToUsers(
+                            owners,
+                            "発注の取り消し依頼が届きました",
+                            `${me.name}さんが発注の取り消しを依頼: ${o.items.slice(0, 40)}`,
+                            "/"
+                          );
+                          onChange();
+                        }}
+                      >
+                        取り消しを依頼する
                       </button>
                     </div>
                   )}
