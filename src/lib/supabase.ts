@@ -4,6 +4,7 @@ import type {
   AttendanceAlert,
   Availability,
   CafeHours,
+  CafeOrder,
   ChecklistItem,
   CommentTemplate,
   EventApproval,
@@ -340,6 +341,26 @@ const fromDbCafeHours = (c: any): CafeHours => ({
   note: c.note ?? '',
 })
 
+const toDbCafeOrder = (o: CafeOrder) => ({
+  id: o.id,
+  user_id: o.userId,
+  items: o.items,
+  note: o.note,
+  status: o.status,
+  created_at: o.createdAt,
+  done_at: o.doneAt ?? null,
+})
+
+const fromDbCafeOrder = (o: any): CafeOrder => ({
+  id: o.id,
+  userId: o.user_id,
+  items: o.items ?? '',
+  note: o.note ?? '',
+  status: o.status === 'done' ? 'done' : 'pending',
+  createdAt: o.created_at ?? new Date().toISOString(),
+  doneAt: o.done_at ?? undefined,
+})
+
 const toDbShiftTemplate = (t: ShiftTemplate) => ({
   id: t.id,
   name: t.name,
@@ -518,6 +539,10 @@ export function syncCafeHours(list: CafeHours[]): void {
   upsertRows('cafe_hours', list, toDbCafeHours, 'id').catch(() => {})
 }
 
+export function syncCafeOrders(list: CafeOrder[]): void {
+  upsertRows('cafe_orders', list, toDbCafeOrder, 'id').catch(() => {})
+}
+
 export function syncShiftTemplates(list: ShiftTemplate[]): void {
   upsertRows('shift_templates', list, toDbShiftTemplate, 'id').catch(() => {})
 }
@@ -532,7 +557,7 @@ export async function loadOrgData(): Promise<void> {
     profiles, events, avail, requests, pay, recipients,
     templates, approvals, reservations,
     timeClocks, checklistItems, handoverNotes, attendanceAlerts,
-    cafeHours, shiftTemplates, notificationSchedules,
+    cafeHours, shiftTemplates, notificationSchedules, cafeOrders,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
     supabase.from('schedule_events').select('*'),
@@ -550,6 +575,7 @@ export async function loadOrgData(): Promise<void> {
     supabase.from('cafe_hours').select('*'),
     supabase.from('shift_templates').select('*'),
     supabase.from('notification_schedules').select('*'),
+    supabase.from('cafe_orders').select('*'),
   ])
   // 読み込みに失敗したテーブルは上書きせず前回の内容を残し、原因を記録する。
   // （黙って空にすると、画面上はデータが消えたようにしか見えないため）
@@ -580,6 +606,7 @@ export async function loadOrgData(): Promise<void> {
   put('sns_cafe_hours', cafeHours, fromDbCafeHours)
   put('sns_shift_templates', shiftTemplates, fromDbShiftTemplate)
   put('sns_notification_schedules', notificationSchedules, fromDbNotificationSchedule)
+  put('sns_cafe_orders', cafeOrders, fromDbCafeOrder)
 }
 
 // ---- Hydration: Supabase → localStorage on app start（旧・単一テナント用。SaaS版では未使用） ----

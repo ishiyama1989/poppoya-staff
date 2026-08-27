@@ -229,6 +229,24 @@ export interface CafeHours {
 export const DEFAULT_CAFE_OPEN_TIME = "09:00";
 export const DEFAULT_CAFE_CLOSE_TIME = "17:00";
 
+// LOCOMO CAFEの発注（カフェ管理人がオーナーへ送る仕入れ依頼）
+export type CafeOrderStatus = "pending" | "done";
+
+export const CAFE_ORDER_STATUS_LABEL: Record<CafeOrderStatus, string> = {
+  pending: "未対応",
+  done: "対応済み",
+};
+
+export interface CafeOrder {
+  id: string;
+  userId: string; // 発注したカフェ管理人
+  items: string; // 発注内容（商品名・数量など）
+  note: string; // 補足メモ（任意）
+  status: CafeOrderStatus;
+  createdAt: string; // ISO日時
+  doneAt?: string; // ISO日時
+}
+
 // シフトのコマ（勤務パターン）。管理者が設定画面で追加・編集できる。
 // timing = 宿泊のどのタイミングで発生する業務かを表す
 export type ShiftTiming = "checkin" | "every_morning" | "middle_day" | "checkout";

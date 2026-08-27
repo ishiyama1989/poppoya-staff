@@ -196,6 +196,18 @@ create table cafe_hours (
   unique (org_id, date)
 );
 
+-- LOCOMO CAFEの発注（カフェ管理人がオーナーへ送る仕入れ依頼）
+create table cafe_orders (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  items text not null,
+  note text default '',
+  status text not null default 'pending', -- 'pending' | 'done'
+  created_at timestamptz not null default now(),
+  done_at timestamptz
+);
+
 -- シフトのコマ（勤務パターン）。管理者が設定画面で追加・編集できる。
 -- timing: checkin / every_morning / middle_day / checkout
 create table shift_templates (
@@ -291,6 +303,25 @@ create policy cafe_sel on cafe_hours for select using (org_id = auth_org_id());
 create policy cafe_ins on cafe_hours for insert with check (org_id = auth_org_id());
 create policy cafe_upd on cafe_hours for update using (org_id = auth_org_id()) with check (org_id = auth_org_id());
 create policy cafe_del on cafe_hours for delete using (org_id = auth_org_id());
+
+-- cafe_orders はオーナー・カフェ管理人のみ読み書き可。対応済みへの変更・削除はオーナーのみ。
+alter table cafe_orders enable row level security;
+create policy cafeorder_sel on cafe_orders for select using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role in ('owner', 'cafe_manager'))
+);
+create policy cafeorder_ins on cafe_orders for insert with check (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role in ('owner', 'cafe_manager'))
+);
+create policy cafeorder_upd on cafe_orders for update using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
+) with check (org_id = auth_org_id());
+create policy cafeorder_del on cafe_orders for delete using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
+);
 
 -- notification_schedules は管理者(owner)のみ読み書き可。送信自体はEdge Functionが
 -- service roleで行うため、last_sent_at の更新はRLSの影響を受けない。

@@ -3,6 +3,7 @@ import type {
   AttendanceAlert,
   Availability,
   CafeHours,
+  CafeOrder,
   ChecklistItem,
   CommentTemplate,
   HandoverNote,
@@ -44,6 +45,7 @@ import {
   syncHandoverNotes,
   syncReservations,
   syncCafeHours,
+  syncCafeOrders,
   syncShiftTemplates,
   syncNotificationSchedules,
   deleteRemote,
@@ -61,6 +63,7 @@ const KEYS = {
   eventApprovals: "sns_event_approvals",
   reservations: "sns_reservations",
   cafeHours: "sns_cafe_hours",
+  cafeOrders: "sns_cafe_orders",
   shiftTemplates: "sns_shift_templates",
   timeClocks: "sns_time_clocks",
   checklistItems: "sns_checklist_items",
@@ -908,6 +911,53 @@ export function newCafeHours(date: string): CafeHours {
 export function deleteCafeHours(id: string): void {
   write(KEYS.cafeHours, getCafeHours().filter((c) => c.id !== id));
   deleteRemote("cafe_hours", { id });
+}
+
+// ---- LOCOMO CAFEの発注（カフェ管理人 → オーナー） ----
+export function getCafeOrders(): CafeOrder[] {
+  return read<CafeOrder[]>(KEYS.cafeOrders, []).sort((a, b) =>
+    a.createdAt < b.createdAt ? 1 : -1
+  );
+}
+
+export function pendingCafeOrdersCount(): number {
+  return getCafeOrders().filter((o) => o.status === "pending").length;
+}
+
+function saveCafeOrders(list: CafeOrder[]): void {
+  write(KEYS.cafeOrders, list);
+  syncCafeOrders(list);
+}
+
+export function addCafeOrder(userId: string, items: string, note: string): CafeOrder {
+  const order: CafeOrder = {
+    id: `cafeorder:${uid()}`,
+    userId,
+    items: items.trim(),
+    note: note.trim(),
+    status: "pending",
+    createdAt: new Date().toISOString(),
+  };
+  saveCafeOrders([...getCafeOrders(), order]);
+  return order;
+}
+
+// 対応済み⇄未対応を切り替える
+export function toggleCafeOrderDone(id: string): void {
+  saveCafeOrders(
+    getCafeOrders().map((o) =>
+      o.id === id
+        ? o.status === "done"
+          ? { ...o, status: "pending", doneAt: undefined }
+          : { ...o, status: "done", doneAt: new Date().toISOString() }
+        : o
+    )
+  );
+}
+
+export function deleteCafeOrder(id: string): void {
+  write(KEYS.cafeOrders, getCafeOrders().filter((o) => o.id !== id));
+  deleteRemote("cafe_orders", { id });
 }
 
 // ---- シフトのコマ（勤務パターン）。管理者が設定画面で編集する ----

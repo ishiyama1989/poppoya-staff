@@ -2,11 +2,12 @@ import { useState } from "react";
 import "./App.css";
 import {
   Calendar as CalendarIcon, Clock, Inbox, Banknote, Settings,
-  Users, BarChart2, LogOut, ClipboardList, History, type LucideIcon,
+  Users, BarChart2, LogOut, ClipboardList, History, Coffee, type LucideIcon,
 } from "lucide-react";
 import { ROLE_LABEL, type User } from "./types";
 import {
   countAwaitingAdmin,
+  pendingCafeOrdersCount,
   pendingEventApprovalsForUser,
   pendingRequestsForUser,
   pendingRequestsSentByUser,
@@ -20,6 +21,7 @@ import Requests from "./components/Requests";
 import MyPay from "./components/MyPay";
 import WorkHistory from "./components/WorkHistory";
 import ProfileSettings from "./components/ProfileSettings";
+import CafeOrders from "./components/CafeOrders";
 
 type Tab =
   | "calendar"
@@ -31,6 +33,7 @@ type Tab =
   | "members"
   | "payments"
   | "tasks"
+  | "cafeOrders"
   | "history";
 
 export default function App({
@@ -50,11 +53,20 @@ export default function App({
   const [tab, setTab] = useState<Tab>("calendar");
 
   const isOwner = user.role === "owner";
+  const isCafeManager = user.role === "cafe_manager";
   const pendingCount = isOwner ? 0 : pendingRequestsForUser(user.id).length;
   const payCount = isOwner ? 0 : pendingEventApprovalsForUser(user.id).length;
   const taskCount = isOwner ? pendingRequestsSentByUser(user.id) : 0;
   const awaitingCount = isOwner ? countAwaitingAdmin() : 0;
-  const tabs: { key: Tab; label: string; icon: LucideIcon; ownerOnly?: boolean; memberOnly?: boolean }[] = [
+  const cafeOrderCount = isOwner ? pendingCafeOrdersCount() : 0;
+  const tabs: {
+    key: Tab;
+    label: string;
+    icon: LucideIcon;
+    ownerOnly?: boolean;
+    memberOnly?: boolean;
+    cafeOnly?: boolean;
+  }[] = [
     { key: "calendar", label: "カレンダー", icon: CalendarIcon },
     { key: "availability", label: "稼働日設定", icon: Clock, memberOnly: true },
     {
@@ -84,6 +96,12 @@ export default function App({
     },
     { key: "history", label: "稼働履歴", icon: History, ownerOnly: true },
     { key: "members", label: "メンバー管理", icon: Users, ownerOnly: true },
+    {
+      key: "cafeOrders",
+      label: `カフェの発注${cafeOrderCount > 0 ? `（${cafeOrderCount}）` : ""}`,
+      icon: Coffee,
+      cafeOnly: true,
+    },
     { key: "settings", label: "設定", icon: Settings },
   ];
 
@@ -107,7 +125,12 @@ export default function App({
 
       <nav className="tabs">
         {tabs
-          .filter((t) => (!t.ownerOnly || isOwner) && (!t.memberOnly || !isOwner))
+          .filter(
+            (t) =>
+              (!t.ownerOnly || isOwner) &&
+              (!t.memberOnly || !isOwner) &&
+              (!t.cafeOnly || isOwner || isCafeManager)
+          )
           .map((t) => (
             <button
               key={t.key}
@@ -144,6 +167,7 @@ export default function App({
         {tab === "members" && isOwner && <OwnerMembers />}
         {tab === "payments" && isOwner && <Payments />}
         {tab === "tasks" && isOwner && <OwnerTasks me={user} />}
+        {tab === "cafeOrders" && (isOwner || isCafeManager) && <CafeOrders me={user} />}
       </main>
     </div>
   );
