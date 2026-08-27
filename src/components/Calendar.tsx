@@ -46,6 +46,7 @@ import {
   newCafeHours,
   deleteCafeHours,
   pendingCafeOrdersByDeadline,
+  toggleCafeOrderDone,
   getUnseenAssignedEvents,
   getUnseenRespondedRequests,
   getUsers,
@@ -764,7 +765,6 @@ function DayPanel({
   const [requestFormIds, setRequestFormIds] = useState<string[] | null>(null);
   const [requestingEvent, setRequestingEvent] = useState<ScheduleEvent | null>(null);
   const [editingCafeHours, setEditingCafeHours] = useState<CafeHours | null>(null);
-  const [showCafeOrderForm, setShowCafeOrderForm] = useState(false);
   const availList = availabilityOn(date).filter((a) =>
     users.some((u) => u.id === a.userId && u.role !== "owner")
   );
@@ -882,23 +882,48 @@ function DayPanel({
 
           {dayCafeHours && me.role !== "owner" && canManageCafe && (
             <div style={{ marginTop: 10 }}>
-              {showCafeOrderForm ? (
-                <CafeQuickOrderForm
-                  me={me}
-                  cafeDate={date}
-                  onSent={() => {
-                    setShowCafeOrderForm(false);
-                    onChange();
-                  }}
-                />
-              ) : (
-                <button className="ghost mini" onClick={() => setShowCafeOrderForm(true)}>
-                  ＋ この営業日で発注する
-                </button>
-              )}
+              <strong>発注する</strong>
+              <CafeQuickOrderForm me={me} cafeDate={date} onSent={onChange} />
             </div>
           )}
         </div>
+
+        {canManageCafe && (pendingCafeOrdersByDeadline()[date]?.length ?? 0) > 0 && (
+          <div className="avail-box">
+            <strong>📦 発注締切</strong>
+            <div className="req-cards">
+              {pendingCafeOrdersByDeadline()[date].map((o) => (
+                <div key={o.id} className="req-card">
+                  <div className="req-card-title">{o.items}</div>
+                  {o.cafeDate && (
+                    <div className="req-card-meta">
+                      対象のカフェ営業日: {o.cafeDate.replace(/-/g, "/")}
+                    </div>
+                  )}
+                  {me.role === "owner" && (
+                    <div className="req-card-meta">
+                      発注者: {users.find((u) => u.id === o.userId)?.name ?? "不明"}
+                    </div>
+                  )}
+                  {o.note && <div className="req-card-note">{o.note}</div>}
+                  {me.role === "owner" && (
+                    <div className="event-actions">
+                      <button
+                        className="primary"
+                        onClick={() => {
+                          toggleCafeOrderDone(o.id);
+                          onChange();
+                        }}
+                      >
+                        対応済みにする
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {me.role === "owner" && (
           <div className="avail-box">
