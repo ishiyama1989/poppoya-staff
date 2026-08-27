@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Clock as ClockIcon, ClipboardCheck, MapPin, User as UserIcon, Search } from "lucide-react";
 import {
+  CAFE_ORDER_STATUS_LABEL,
   EVENT_TYPE_COLOR,
   EVENT_TYPE_LABEL,
   EVENT_TYPES,
@@ -824,6 +825,8 @@ function DayPanel({
   const shiftTemplates = getShiftTemplates();
   // カフェ管理人はメンバーとほぼ同じ権限だが、LOCOMO CAFEの営業時間だけ追加・編集できる
   const canManageCafe = me.role === "owner" || me.role === "cafe_manager";
+  // この営業日を対象に、すでに発注されている内容（対応済みも含めて表示する）
+  const cafeDateOrders = getCafeOrders().filter((o) => o.cafeDate === date);
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -927,6 +930,35 @@ function DayPanel({
             </button>
           ) : (
             <span className="muted">営業なし</span>
+          )}
+
+          {dayCafeHours && canManageCafe && cafeDateOrders.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <strong>この営業日への発注</strong>
+              <div className="req-cards">
+                {cafeDateOrders.map((o) => (
+                  <div key={o.id} className="req-card">
+                    <div className="req-card-head">
+                      <span
+                        className={`req-status ${o.status === "done" ? "approved" : "pending"}`}
+                      >
+                        {CAFE_ORDER_STATUS_LABEL[o.status]}
+                      </span>
+                      {o.cancelRequested && (
+                        <span className="req-status pending">取り消し依頼中</span>
+                      )}
+                    </div>
+                    {me.role === "owner" && (
+                      <div className="req-card-meta">
+                        発注者: {users.find((u) => u.id === o.userId)?.name ?? "不明"}
+                      </div>
+                    )}
+                    <div className="req-card-title">{o.items}</div>
+                    {o.note && <div className="req-card-note">{o.note}</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {dayCafeHours && me.role !== "owner" && canManageCafe && (
