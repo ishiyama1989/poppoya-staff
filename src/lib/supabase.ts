@@ -352,6 +352,7 @@ const toDbCafeOrder = (o: CafeOrder) => ({
   done_at: o.doneAt ?? null,
   cafe_date: o.cafeDate ?? null,
   deadline: o.deadline ?? null,
+  cancel_requested: o.cancelRequested ?? false,
 })
 
 const fromDbCafeOrder = (o: any): CafeOrder => ({
@@ -362,6 +363,7 @@ const fromDbCafeOrder = (o: any): CafeOrder => ({
   status: o.status === 'done' ? 'done' : 'pending',
   createdAt: o.created_at ?? new Date().toISOString(),
   doneAt: o.done_at ?? undefined,
+  cancelRequested: o.cancel_requested ?? false,
   cafeDate: o.cafe_date ?? undefined,
   deadline: o.deadline ?? undefined,
 })

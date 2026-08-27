@@ -965,6 +965,27 @@ export function updateCafeOrderDeadline(
   );
 }
 
+// ---- アプリ内通知（カフェの発注が新しく届いた） ----
+function seenCafeOrdersKey(userId: string): string {
+  return `sns_seen_cafe_orders_${userId}`;
+}
+
+// まだ確認していない、未対応のカフェの発注（カレンダー上部のバナー用）
+export function getUnseenCafeOrders(userId: string): CafeOrder[] {
+  const seen = read<string[]>(seenCafeOrdersKey(userId), []);
+  return getCafeOrders().filter(
+    (o) => o.status === "pending" && !seen.includes(o.id)
+  );
+}
+
+// 未対応のカフェの発注をすべて「確認済み」にする
+export function markCafeOrdersSeen(userId: string): void {
+  const ids = getCafeOrders()
+    .filter((o) => o.status === "pending")
+    .map((o) => o.id);
+  write(seenCafeOrdersKey(userId), ids);
+}
+
 // 未対応の発注を、発注締切日ごとにまとめる（カレンダー表示用）
 export function pendingCafeOrdersByDeadline(): Record<string, CafeOrder[]> {
   const map: Record<string, CafeOrder[]> = {};
@@ -991,6 +1012,25 @@ export function toggleCafeOrderDone(id: string): void {
 export function deleteCafeOrder(id: string): void {
   write(KEYS.cafeOrders, getCafeOrders().filter((o) => o.id !== id));
   deleteRemote("cafe_orders", { id });
+}
+
+// カフェ管理人が、自分の発注の取り消しを依頼する（実際の削除はオーナーの承認後）
+export function requestCancelCafeOrder(id: string): void {
+  saveCafeOrders(
+    getCafeOrders().map((o) => (o.id === id ? { ...o, cancelRequested: true } : o))
+  );
+}
+
+// オーナーが取り消し依頼を承認する＝発注そのものを削除する
+export function approveCancelCafeOrder(id: string): void {
+  deleteCafeOrder(id);
+}
+
+// オーナーが取り消し依頼を却下する＝発注をそのまま残す
+export function rejectCancelCafeOrder(id: string): void {
+  saveCafeOrders(
+    getCafeOrders().map((o) => (o.id === id ? { ...o, cancelRequested: false } : o))
+  );
 }
 
 // ---- LOCOMO CAFEの発注商品マスタ ----

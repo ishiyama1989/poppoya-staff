@@ -10,12 +10,15 @@ import {
 import {
   addCafeOrder,
   addCafeProduct,
+  approveCancelCafeOrder,
   deleteCafeOrder,
   deleteCafeProduct,
   getCafeHours,
   getCafeOrders,
   getCafeProducts,
   getUsers,
+  rejectCancelCafeOrder,
+  requestCancelCafeOrder,
   toggleCafeOrderDone,
   updateCafeOrderDeadline,
   updateCafeProduct,
@@ -195,8 +198,6 @@ export default function CafeOrders({ me }: { me: User }) {
         </div>
       )}
 
-      <CafeProductSettings products={products} onChange={refresh} />
-
       <h3 className="req-section-title">
         {isOwner ? "届いた発注" : "これまでの発注"}
       </h3>
@@ -240,6 +241,13 @@ export default function CafeOrders({ me }: { me: User }) {
               )}
               {o.note && <div className="req-card-note">{o.note}</div>}
 
+              {o.cancelRequested && (
+                <p className="muted small" style={{ margin: "4px 0", color: "var(--danger)" }}>
+                  ⚠️ 取り消し依頼中です
+                  {isOwner ? "（承認すると発注が削除されます）" : ""}
+                </p>
+              )}
+
               {isOwner && editingDeadlineId === o.id && (
                 <div className="event-form" style={{ marginTop: 8 }}>
                   <label>
@@ -275,6 +283,31 @@ export default function CafeOrders({ me }: { me: User }) {
                 </div>
               )}
 
+              {isOwner && o.cancelRequested && (
+                <div className="req-card-actions">
+                  <button
+                    className="ghost"
+                    onClick={() => {
+                      rejectCancelCafeOrder(o.id);
+                      refresh();
+                    }}
+                  >
+                    依頼を却下する
+                  </button>
+                  <button
+                    className="ghost danger"
+                    onClick={() => {
+                      if (confirm("取り消しを承認して、この発注を削除しますか？")) {
+                        approveCancelCafeOrder(o.id);
+                        refresh();
+                      }
+                    }}
+                  >
+                    承認して取り消す
+                  </button>
+                </div>
+              )}
+
               {isOwner && (
                 <div className="req-card-actions">
                   <button className="ghost" onClick={() => startEditDeadline(o)}>
@@ -302,10 +335,40 @@ export default function CafeOrders({ me }: { me: User }) {
                   </button>
                 </div>
               )}
+
+              {!isOwner && o.status === "pending" && (
+                <div className="req-card-actions">
+                  {o.cancelRequested ? (
+                    <span className="muted small">オーナーの承認待ちです</span>
+                  ) : (
+                    <button
+                      className="ghost danger"
+                      onClick={() => {
+                        if (!confirm("この発注の取り消しを依頼しますか？")) return;
+                        requestCancelCafeOrder(o.id);
+                        const owners = users
+                          .filter((u) => u.role === "owner")
+                          .map((u) => u.id);
+                        sendPushToUsers(
+                          owners,
+                          "発注の取り消し依頼が届きました",
+                          `${me.name}さんが発注の取り消しを依頼: ${o.items.slice(0, 40)}`,
+                          "/"
+                        );
+                        refresh();
+                      }}
+                    >
+                      取り消しを依頼する
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
       )}
+
+      <CafeProductSettings products={products} onChange={refresh} />
     </div>
   );
 }

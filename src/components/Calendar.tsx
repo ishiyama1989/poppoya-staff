@@ -45,13 +45,16 @@ import {
   upsertCafeHours,
   newCafeHours,
   deleteCafeHours,
+  getCafeOrders,
   pendingCafeOrdersByDeadline,
   toggleCafeOrderDone,
   deleteCafeOrder,
   getUnseenAssignedEvents,
+  getUnseenCafeOrders,
   getUnseenRespondedRequests,
   getUsers,
   markAssignedEventsSeen,
+  markCafeOrdersSeen,
   markRespondedRequestsSeen,
   pendingEventApprovalsForUser,
   pendingRequestsForUser,
@@ -230,6 +233,16 @@ export default function Calendar({
   // オーナー：自分が送った依頼が承認・却下された（未確認）
   const unseenResponded = useMemo(
     () => (me.role === "owner" ? getUnseenRespondedRequests(me.id) : []),
+    [version, me]
+  );
+  // オーナー：カフェの発注が新しく届いた（未確認）
+  const unseenCafeOrders = useMemo(
+    () => (me.role === "owner" ? getUnseenCafeOrders(me.id) : []),
+    [version, me]
+  );
+  // オーナー：カフェの発注の取り消し依頼（承認/却下するまでずっと表示する）
+  const cafeCancelRequests = useMemo(
+    () => (me.role === "owner" ? getCafeOrders().filter((o) => o.cancelRequested) : []),
     [version, me]
   );
 
@@ -489,6 +502,41 @@ export default function Calendar({
             >
               確認しました
             </button>
+          </div>
+        )}
+        {unseenCafeOrders.length > 0 && (
+          <div className="pending-banner event">
+            <span className="pending-banner-text">
+              カフェの発注が <strong>{unseenCafeOrders.length}件</strong> 届いています
+              <span className="unseen-dates">
+                {unseenCafeOrders
+                  .slice(0, 4)
+                  .map((o) => o.items)
+                  .join("、")}
+              </span>
+            </span>
+            <button
+              className="primary"
+              onClick={() => {
+                markCafeOrdersSeen(me.id);
+                refresh();
+              }}
+            >
+              確認しました
+            </button>
+          </div>
+        )}
+        {cafeCancelRequests.length > 0 && (
+          <div className="pending-banner warn">
+            <span className="pending-banner-text">
+              カフェの発注の取り消し依頼が <strong>{cafeCancelRequests.length}件</strong> あります
+              <span className="unseen-dates">
+                {cafeCancelRequests
+                  .slice(0, 4)
+                  .map((o) => o.items)
+                  .join("、")}
+              </span>
+            </span>
           </div>
         )}
         {shortStaffedDates.length > 0 && (

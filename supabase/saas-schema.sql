@@ -207,7 +207,8 @@ create table cafe_orders (
   created_at timestamptz not null default now(),
   done_at timestamptz,
   cafe_date text, -- 対象のLOCOMO CAFE営業日 "YYYY-MM-DD"
-  deadline text -- 発注締切日（cafe_dateから各商品のリードタイムで計算） "YYYY-MM-DD"
+  deadline text, -- 発注締切日（cafe_dateから各商品のリードタイムで計算） "YYYY-MM-DD"
+  cancel_requested boolean not null default false -- カフェ管理人が取り消しを依頼中か
 );
 
 -- 発注できる商品のマスタ（オーナー・カフェ管理人が登録する）
@@ -328,9 +329,13 @@ create policy cafeorder_ins on cafe_orders for insert with check (
   org_id = auth_org_id()
   and exists (select 1 from profiles me where me.id = auth.uid() and me.role in ('owner', 'cafe_manager'))
 );
+-- 更新はオーナー、または発注した本人（カフェ管理人が取り消し依頼フラグを立てるため）が可能
 create policy cafeorder_upd on cafe_orders for update using (
   org_id = auth_org_id()
-  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
+  and (
+    exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
+    or user_id = auth.uid()
+  )
 ) with check (org_id = auth_org_id());
 create policy cafeorder_del on cafe_orders for delete using (
   org_id = auth_org_id()

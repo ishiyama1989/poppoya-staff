@@ -247,6 +247,7 @@ export interface CafeOrder {
   doneAt?: string; // ISO日時
   cafeDate?: string; // 対象のLOCOMO CAFE営業日 "YYYY-MM-DD"
   deadline?: string; // 発注締切日（cafeDateから各商品の発注リードタイムで計算） "YYYY-MM-DD"
+  cancelRequested?: boolean; // カフェ管理人が取り消しを依頼した（オーナーの承認待ち）
 }
 
 // 発注できる商品の数量単位
