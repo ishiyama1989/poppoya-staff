@@ -68,6 +68,12 @@ export default function App({
     cafeOnly?: boolean;
   }[] = [
     { key: "calendar", label: "カレンダー", icon: CalendarIcon },
+    {
+      key: "cafeOrders",
+      label: `カフェの発注${cafeOrderCount > 0 ? `（${cafeOrderCount}）` : ""}`,
+      icon: Coffee,
+      cafeOnly: true,
+    },
     { key: "availability", label: "稼働日設定", icon: Clock, memberOnly: true },
     {
       key: "requests",
@@ -96,12 +102,6 @@ export default function App({
     },
     { key: "history", label: "稼働履歴", icon: History, ownerOnly: true },
     { key: "members", label: "メンバー管理", icon: Users, ownerOnly: true },
-    {
-      key: "cafeOrders",
-      label: `カフェの発注${cafeOrderCount > 0 ? `（${cafeOrderCount}）` : ""}`,
-      icon: Coffee,
-      cafeOnly: true,
-    },
     { key: "settings", label: "設定", icon: Settings },
   ];
 
