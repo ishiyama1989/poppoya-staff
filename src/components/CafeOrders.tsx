@@ -12,12 +12,14 @@ import {
   addCafeProduct,
   deleteCafeOrder,
   deleteCafeProduct,
+  getCafeHours,
   getCafeOrders,
   getCafeProducts,
   getUsers,
   toggleCafeOrderDone,
   updateCafeProduct,
 } from "../store";
+import { addDays, todayStr } from "../lib/date";
 import { sendPushToUsers } from "../lib/push";
 
 // LOCOMO CAFEの発注（カフェ管理人 → オーナー）
@@ -30,10 +32,18 @@ export default function CafeOrders({ me }: { me: User }) {
   const products = getCafeProducts();
   const isOwner = me.role === "owner";
 
+  // カレンダーに登録済みのLOCOMO CAFE営業日（今日以降）から選ぶ
+  const today = todayStr();
+  const upcomingCafeDates = getCafeHours()
+    .filter((c) => c.date >= today)
+    .map((c) => c.date)
+    .sort();
+
   // 入力中に桁がおかしくならないよう、数量は文字列のまま保持し
   // 送信時にだけ数値へ変換する（毎キー入力で丸めると手入力しづらくなるため）。
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
+  const [cafeDate, setCafeDate] = useState("");
 
   function refresh() {
     setVersion((v) => v + 1);
@@ -49,22 +59,34 @@ export default function CafeOrders({ me }: { me: User }) {
     return Number.isFinite(n) && n > 0 ? n : 0;
   }
 
+  // その商品を、選んだカフェ営業日までに発注する場合の締切日
+  function deadlineFor(p: CafeProduct): string | null {
+    if (!cafeDate) return null;
+    return addDays(cafeDate, -p.leadDays);
+  }
+
   function send() {
-    const lines = products
-      .filter((p) => countOf(p.id) > 0)
-      .map((p) => `${p.name} ${countOf(p.id)}${CAFE_PRODUCT_UNIT_LABEL[p.unit]}`);
-    if (lines.length === 0) return alert("発注する商品を選択してください");
-    const items = lines.join("、");
-    addCafeOrder(me.id, items, note);
+    if (!cafeDate) return alert("対象のカフェ営業日を選択してください");
+    const selected = products.filter((p) => countOf(p.id) > 0);
+    if (selected.length === 0) return alert("発注する商品を選択してください");
+    const items = selected
+      .map((p) => `${p.name} ${countOf(p.id)}${CAFE_PRODUCT_UNIT_LABEL[p.unit]}`)
+      .join("、");
+    // 複数商品をまとめて発注する場合、一番厳しい（早い）締切に合わせる
+    const deadline = selected
+      .map((p) => deadlineFor(p)!)
+      .sort()[0];
+    addCafeOrder(me.id, items, note, cafeDate, deadline);
     const owners = users.filter((u) => u.role === "owner").map((u) => u.id);
     sendPushToUsers(
       owners,
       "カフェの発注が届きました",
-      `${me.name}さんから発注: ${items.slice(0, 40)}`,
+      `${me.name}さんから発注: ${items.slice(0, 40)}（${cafeDate.slice(5).replace("-", "/")}分・締切${deadline.slice(5).replace("-", "/")}）`,
       "/"
     );
     setCounts({});
     setNote("");
+    setCafeDate("");
     refresh();
   }
 
@@ -84,36 +106,57 @@ export default function CafeOrders({ me }: { me: User }) {
 
       {!isOwner && (
         <div className="event-form" style={{ marginBottom: 20 }}>
-          <label>発注する商品と数量</label>
+          <label>
+            対象のカフェ営業日
+            {upcomingCafeDates.length === 0 ? (
+              <p className="muted small">
+                今後のLOCOMO CAFE営業予定がありません。まずカレンダーで営業日を登録してください。
+              </p>
+            ) : (
+              <select value={cafeDate} onChange={(e) => setCafeDate(e.target.value)}>
+                <option value="">選択してください</option>
+                {upcomingCafeDates.map((d) => (
+                  <option key={d} value={d}>
+                    {d.replace(/-/g, "/")}
+                  </option>
+                ))}
+              </select>
+            )}
+          </label>
+          <label style={{ marginTop: 10 }}>発注する商品と数量</label>
           {products.length === 0 ? (
             <p className="muted small">
               まだ商品が登録されていません。下の「商品登録」から追加してください。
             </p>
           ) : (
             <div className="slot-list">
-              {products.map((p) => (
-                <div
-                  key={p.id}
-                  className="slot-row"
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
-                >
-                  <span>
-                    {p.name}
-                    {`（${p.supplier ? `発注先: ${p.supplier} ・` : ""}${p.leadDays}日前までに発注）`}
-                  </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <input
-                      type="number"
-                      min={0}
-                      inputMode="numeric"
-                      value={counts[p.id] ?? ""}
-                      onChange={(e) => setCount(p.id, e.target.value)}
-                      style={{ width: 70 }}
-                    />
-                    {CAFE_PRODUCT_UNIT_LABEL[p.unit]}
-                  </span>
-                </div>
-              ))}
+              {products.map((p) => {
+                const deadline = deadlineFor(p);
+                return (
+                  <div
+                    key={p.id}
+                    className="slot-row"
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+                  >
+                    <span>
+                      {p.name}
+                      {`（${p.supplier ? `発注先: ${p.supplier} ・` : ""}${p.leadDays}日前までに発注`}
+                      {deadline ? ` ・締切 ${deadline.replace(/-/g, "/")}` : ""}）
+                    </span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                      <input
+                        type="number"
+                        min={0}
+                        inputMode="numeric"
+                        value={counts[p.id] ?? ""}
+                        onChange={(e) => setCount(p.id, e.target.value)}
+                        style={{ width: 70 }}
+                      />
+                      {CAFE_PRODUCT_UNIT_LABEL[p.unit]}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           )}
           <label style={{ marginTop: 10 }}>
@@ -163,6 +206,13 @@ export default function CafeOrders({ me }: { me: User }) {
                 </div>
               )}
               <div className="req-card-title">{o.items}</div>
+              {(o.cafeDate || o.deadline) && (
+                <div className="req-card-meta">
+                  {o.cafeDate && `対象日: ${o.cafeDate.replace(/-/g, "/")}`}
+                  {o.cafeDate && o.deadline && " ／ "}
+                  {o.deadline && `発注締切: ${o.deadline.replace(/-/g, "/")}`}
+                </div>
+              )}
               {o.note && <div className="req-card-note">{o.note}</div>}
               {isOwner && (
                 <div className="req-card-actions">

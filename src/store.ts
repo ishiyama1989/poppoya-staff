@@ -932,7 +932,13 @@ function saveCafeOrders(list: CafeOrder[]): void {
   syncCafeOrders(list);
 }
 
-export function addCafeOrder(userId: string, items: string, note: string): CafeOrder {
+export function addCafeOrder(
+  userId: string,
+  items: string,
+  note: string,
+  cafeDate?: string,
+  deadline?: string
+): CafeOrder {
   const order: CafeOrder = {
     id: `cafeorder:${uid()}`,
     userId,
@@ -940,9 +946,21 @@ export function addCafeOrder(userId: string, items: string, note: string): CafeO
     note: note.trim(),
     status: "pending",
     createdAt: new Date().toISOString(),
+    cafeDate,
+    deadline,
   };
   saveCafeOrders([...getCafeOrders(), order]);
   return order;
+}
+
+// 未対応の発注を、発注締切日ごとにまとめる（カレンダー表示用）
+export function pendingCafeOrdersByDeadline(): Record<string, CafeOrder[]> {
+  const map: Record<string, CafeOrder[]> = {};
+  for (const o of getCafeOrders()) {
+    if (o.status !== "pending" || !o.deadline) continue;
+    (map[o.deadline] ??= []).push(o);
+  }
+  return map;
 }
 
 // 対応済み⇄未対応を切り替える

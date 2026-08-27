@@ -245,6 +245,8 @@ export interface CafeOrder {
   status: CafeOrderStatus;
   createdAt: string; // ISO日時
   doneAt?: string; // ISO日時
+  cafeDate?: string; // 対象のLOCOMO CAFE営業日 "YYYY-MM-DD"
+  deadline?: string; // 発注締切日（cafeDateから各商品の発注リードタイムで計算） "YYYY-MM-DD"
 }
 
 // 発注できる商品の数量単位

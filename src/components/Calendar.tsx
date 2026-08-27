@@ -45,6 +45,7 @@ import {
   upsertCafeHours,
   newCafeHours,
   deleteCafeHours,
+  pendingCafeOrdersByDeadline,
   getUnseenAssignedEvents,
   getUnseenRespondedRequests,
   getUsers,
@@ -255,6 +256,13 @@ export default function Calendar({
     for (const c of cafeHours) map[c.date] = c;
     return map;
   }, [cafeHours]);
+
+  // カフェの発注締切（未対応の発注のみ、締切日ごとにまとめる）
+  const canManageCafe = me.role === "owner" || me.role === "cafe_manager";
+  const cafeOrderDeadlines = useMemo(
+    () => (canManageCafe ? pendingCafeOrdersByDeadline() : {}),
+    [version, canManageCafe]
+  );
 
   // 予約はあるのにスタッフが一人も配置されていない日（当月のみ）
   const shortStaffedDates = useMemo(() => {
@@ -595,6 +603,14 @@ export default function Calendar({
                 {cafeHoursByDate[ds] && (
                   <div className="cal-reservations cal-cafe-hours">
                     ☕ {cafeHoursByDate[ds].openTime}–{cafeHoursByDate[ds].closeTime}
+                  </div>
+                )}
+                {cafeOrderDeadlines[ds] && (
+                  <div
+                    className="cal-reservations cal-cafe-deadline"
+                    title={cafeOrderDeadlines[ds].map((o) => o.items).join("、")}
+                  >
+                    📦 発注締切（{cafeOrderDeadlines[ds].length}件）
                   </div>
                 )}
                 <div className="cal-events">

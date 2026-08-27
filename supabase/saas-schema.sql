@@ -205,7 +205,9 @@ create table cafe_orders (
   note text default '',
   status text not null default 'pending', -- 'pending' | 'done'
   created_at timestamptz not null default now(),
-  done_at timestamptz
+  done_at timestamptz,
+  cafe_date text, -- 対象のLOCOMO CAFE営業日 "YYYY-MM-DD"
+  deadline text -- 発注締切日（cafe_dateから各商品のリードタイムで計算） "YYYY-MM-DD"
 );
 
 -- 発注できる商品のマスタ（オーナー・カフェ管理人が登録する）

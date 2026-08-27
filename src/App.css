@@ -873,6 +873,11 @@ label input, label select, label textarea { margin-top: 6px; font-weight: 400; }
   background: rgba(18,184,134,0.12);
 }
 
+.cal-cafe-deadline {
+  color: #a01f2c;
+  background: rgba(217,79,92,0.12);
+}
+
 .checkbox-row {
   display: flex !important;
   align-items: center;
