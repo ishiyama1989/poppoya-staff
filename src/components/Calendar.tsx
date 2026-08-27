@@ -50,6 +50,9 @@ import {
   pendingCafeOrdersByDeadline,
   toggleCafeOrderDone,
   deleteCafeOrder,
+  approveCancelCafeOrder,
+  rejectCancelCafeOrder,
+  requestCancelCafeOrder,
   getUnseenAssignedEvents,
   getUnseenCafeOrders,
   getUnseenRespondedRequests,
@@ -955,6 +958,75 @@ function DayPanel({
                     )}
                     <div className="req-card-title">{o.items}</div>
                     {o.note && <div className="req-card-note">{o.note}</div>}
+
+                    {o.status === "pending" && me.role === "owner" && (
+                      <div className="req-card-actions">
+                        {o.cancelRequested ? (
+                          <>
+                            <button
+                              className="ghost"
+                              onClick={() => {
+                                rejectCancelCafeOrder(o.id);
+                                onChange();
+                              }}
+                            >
+                              依頼を却下する
+                            </button>
+                            <button
+                              className="ghost danger"
+                              onClick={() => {
+                                if (confirm("取り消しを承認して、この発注を削除しますか？")) {
+                                  approveCancelCafeOrder(o.id);
+                                  onChange();
+                                }
+                              }}
+                            >
+                              承認して取り消す
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="ghost danger"
+                            onClick={() => {
+                              if (confirm("この発注を削除しますか？")) {
+                                deleteCafeOrder(o.id);
+                                onChange();
+                              }
+                            }}
+                          >
+                            発注を取り消す
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {o.status === "pending" && me.role !== "owner" && o.userId === me.id && (
+                      <div className="req-card-actions">
+                        {o.cancelRequested ? (
+                          <span className="muted small">オーナーの承認待ちです</span>
+                        ) : (
+                          <button
+                            className="ghost danger"
+                            onClick={() => {
+                              if (!confirm("この発注の取り消しを依頼しますか？")) return;
+                              requestCancelCafeOrder(o.id);
+                              const owners = users
+                                .filter((u) => u.role === "owner")
+                                .map((u) => u.id);
+                              sendPushToUsers(
+                                owners,
+                                "発注の取り消し依頼が届きました",
+                                `${me.name}さんが発注の取り消しを依頼: ${o.items.slice(0, 40)}`,
+                                "/"
+                              );
+                              onChange();
+                            }}
+                          >
+                            取り消しを依頼する
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
