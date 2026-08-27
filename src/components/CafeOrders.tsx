@@ -16,6 +16,7 @@ import {
   getCafeProducts,
   getUsers,
   toggleCafeOrderDone,
+  updateCafeProduct,
 } from "../store";
 import { sendPushToUsers } from "../lib/push";
 
@@ -29,7 +30,9 @@ export default function CafeOrders({ me }: { me: User }) {
   const products = getCafeProducts();
   const isOwner = me.role === "owner";
 
-  const [counts, setCounts] = useState<Record<string, number>>({});
+  // 入力中に桁がおかしくならないよう、数量は文字列のまま保持し
+  // 送信時にだけ数値へ変換する（毎キー入力で丸めると手入力しづらくなるため）。
+  const [counts, setCounts] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
 
   function refresh() {
@@ -37,18 +40,19 @@ export default function CafeOrders({ me }: { me: User }) {
   }
   void version;
 
-  function setCount(id: string, count: number) {
-    setCounts((cur) => ({ ...cur, [id]: Math.max(0, count) }));
+  function setCount(id: string, value: string) {
+    setCounts((cur) => ({ ...cur, [id]: value }));
+  }
+
+  function countOf(id: string): number {
+    const n = Number(counts[id]);
+    return Number.isFinite(n) && n > 0 ? n : 0;
   }
 
   function send() {
     const lines = products
-      .filter((p) => (counts[p.id] ?? 0) > 0)
-      .map((p) => {
-        const count = counts[p.id];
-        const total = p.quantity * count;
-        return `${p.name} ${total}${CAFE_PRODUCT_UNIT_LABEL[p.unit]}`;
-      });
+      .filter((p) => countOf(p.id) > 0)
+      .map((p) => `${p.name} ${countOf(p.id)}${CAFE_PRODUCT_UNIT_LABEL[p.unit]}`);
     if (lines.length === 0) return alert("発注する商品を選択してください");
     const items = lines.join("、");
     addCafeOrder(me.id, items, note);
@@ -78,14 +82,12 @@ export default function CafeOrders({ me }: { me: User }) {
         </p>
       </div>
 
-      <CafeProductSettings products={products} onChange={refresh} />
-
       {!isOwner && (
         <div className="event-form" style={{ marginBottom: 20 }}>
           <label>発注する商品と数量</label>
           {products.length === 0 ? (
             <p className="muted small">
-              まだ商品が登録されていません。上の「商品登録」から追加してください。
+              まだ商品が登録されていません。下の「商品登録」から追加してください。
             </p>
           ) : (
             <div className="slot-list">
@@ -96,18 +98,22 @@ export default function CafeOrders({ me }: { me: User }) {
                   style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
                 >
                   <span>
-                    {p.name}（{p.quantity}
+                    {p.name}（目安 {p.quantity}
                     {CAFE_PRODUCT_UNIT_LABEL[p.unit]}/回
                     {p.supplier ? ` ・発注先: ${p.supplier}` : ""}
                     {` ・${p.leadDays}日前までに発注`}）
                   </span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={counts[p.id] ?? 0}
-                    onChange={(e) => setCount(p.id, Number(e.target.value))}
-                    style={{ width: 70 }}
-                  />
+                  <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                    <input
+                      type="number"
+                      min={0}
+                      inputMode="numeric"
+                      value={counts[p.id] ?? ""}
+                      onChange={(e) => setCount(p.id, e.target.value)}
+                      style={{ width: 70 }}
+                    />
+                    {CAFE_PRODUCT_UNIT_LABEL[p.unit]}
+                  </span>
                 </div>
               ))}
             </div>
@@ -128,6 +134,8 @@ export default function CafeOrders({ me }: { me: User }) {
           </div>
         </div>
       )}
+
+      <CafeProductSettings products={products} onChange={refresh} />
 
       <h3 className="req-section-title">
         {isOwner ? "届いた発注" : "これまでの発注"}
@@ -190,7 +198,7 @@ export default function CafeOrders({ me }: { me: User }) {
   );
 }
 
-// 発注できる商品の登録・削除（オーナー・カフェ管理人どちらも操作可）
+// 発注できる商品の登録・編集・削除（オーナー・カフェ管理人どちらも操作可）
 function CafeProductSettings({
   products,
   onChange,
@@ -198,23 +206,7 @@ function CafeProductSettings({
   products: CafeProduct[];
   onChange: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [supplier, setSupplier] = useState("");
-  const [quantity, setQuantity] = useState(1);
-  const [unit, setUnit] = useState<CafeProductUnit>("g");
-  const [leadDays, setLeadDays] = useState(1);
-
-  function add() {
-    if (!name.trim()) return alert("商品名を入力してください");
-    addCafeProduct({ name, supplier, quantity, unit, leadDays });
-    setName("");
-    setSupplier("");
-    setQuantity(1);
-    setUnit("g");
-    setLeadDays(1);
-    onChange();
-  }
+  const [editing, setEditing] = useState<CafeProduct | "new" | null>(null);
 
   return (
     <div className="settings-card" style={{ marginBottom: 20 }}>
@@ -241,6 +233,9 @@ function CafeProductSettings({
                 {p.leadDays}日前までに発注
               </div>
               <div className="event-actions">
+                <button className="ghost" onClick={() => setEditing(p)}>
+                  編集
+                </button>
                 <button
                   className="ghost danger"
                   onClick={() => {
@@ -258,68 +253,112 @@ function CafeProductSettings({
         </div>
       )}
 
-      {!open ? (
-        <button className="ghost mini" onClick={() => setOpen(true)}>
+      {!editing && (
+        <button className="ghost mini" onClick={() => setEditing("new")}>
           ＋ 商品を追加
         </button>
-      ) : (
-        <div className="event-form">
-          <label>
-            商品名
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="例: コーヒー豆"
-            />
-          </label>
-          <label>
-            発注先
-            <input
-              value={supplier}
-              onChange={(e) => setSupplier(e.target.value)}
-              placeholder="例: ○○商会"
-            />
-          </label>
-          <div className="row">
-            <label>
-              数量
-              <input
-                type="number"
-                min={1}
-                value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-              />
-            </label>
-            <label>
-              単位
-              <select value={unit} onChange={(e) => setUnit(e.target.value as CafeProductUnit)}>
-                {CAFE_PRODUCT_UNITS.map((u) => (
-                  <option key={u} value={u}>
-                    {CAFE_PRODUCT_UNIT_LABEL[u]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              何日前までに発注
-              <input
-                type="number"
-                min={0}
-                value={leadDays}
-                onChange={(e) => setLeadDays(Math.max(0, Number(e.target.value)))}
-              />
-            </label>
-          </div>
-          <div className="form-actions">
-            <button className="ghost" onClick={() => setOpen(false)}>
-              キャンセル
-            </button>
-            <button className="primary" onClick={add}>
-              保存
-            </button>
-          </div>
-        </div>
       )}
+
+      {editing && (
+        <CafeProductEditor
+          value={editing === "new" ? null : editing}
+          onCancel={() => setEditing(null)}
+          onSave={() => {
+            setEditing(null);
+            onChange();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CafeProductEditor({
+  value,
+  onCancel,
+  onSave,
+}: {
+  value: CafeProduct | null;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const [name, setName] = useState(value?.name ?? "");
+  const [supplier, setSupplier] = useState(value?.supplier ?? "");
+  // 手入力しやすいよう文字列のまま保持し、保存時にだけ数値へ変換する
+  const [quantity, setQuantity] = useState(String(value?.quantity ?? 1));
+  const [unit, setUnit] = useState<CafeProductUnit>(value?.unit ?? "g");
+  const [leadDays, setLeadDays] = useState(String(value?.leadDays ?? 1));
+
+  function save() {
+    if (!name.trim()) return alert("商品名を入力してください");
+    const q = Math.max(1, Number(quantity) || 0);
+    const d = Math.max(0, Number(leadDays) || 0);
+    if (value) {
+      updateCafeProduct(value.id, { name, supplier, quantity: q, unit, leadDays: d });
+    } else {
+      addCafeProduct({ name, supplier, quantity: q, unit, leadDays: d });
+    }
+    onSave();
+  }
+
+  return (
+    <div className="event-form">
+      <label>
+        商品名
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="例: コーヒー豆"
+        />
+      </label>
+      <label>
+        発注先
+        <input
+          value={supplier}
+          onChange={(e) => setSupplier(e.target.value)}
+          placeholder="例: ○○商会"
+        />
+      </label>
+      <div className="row">
+        <label>
+          数量
+          <input
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+          />
+        </label>
+        <label>
+          単位
+          <select value={unit} onChange={(e) => setUnit(e.target.value as CafeProductUnit)}>
+            {CAFE_PRODUCT_UNITS.map((u) => (
+              <option key={u} value={u}>
+                {CAFE_PRODUCT_UNIT_LABEL[u]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          何日前までに発注
+          <input
+            type="number"
+            min={0}
+            inputMode="numeric"
+            value={leadDays}
+            onChange={(e) => setLeadDays(e.target.value)}
+          />
+        </label>
+      </div>
+      <div className="form-actions">
+        <button className="ghost" onClick={onCancel}>
+          キャンセル
+        </button>
+        <button className="primary" onClick={save}>
+          保存
+        </button>
+      </div>
     </div>
   );
 }

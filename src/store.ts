@@ -997,6 +997,32 @@ export function addCafeProduct(input: {
   return product;
 }
 
+export function updateCafeProduct(
+  id: string,
+  input: {
+    name: string;
+    supplier: string;
+    quantity: number;
+    unit: CafeProduct["unit"];
+    leadDays: number;
+  }
+): void {
+  saveCafeProducts(
+    getCafeProducts().map((p) =>
+      p.id === id
+        ? {
+            ...p,
+            name: input.name.trim(),
+            supplier: input.supplier.trim(),
+            quantity: input.quantity,
+            unit: input.unit,
+            leadDays: input.leadDays,
+          }
+        : p
+    )
+  );
+}
+
 export function deleteCafeProduct(id: string): void {
   write(KEYS.cafeProducts, getCafeProducts().filter((p) => p.id !== id));
   deleteRemote("cafe_products", { id });
