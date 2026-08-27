@@ -261,8 +261,7 @@ export interface CafeProduct {
   id: string;
   name: string; // 商品名（例: コーヒー豆）
   supplier: string; // 発注先
-  quantity: number; // 1回あたりの基本数量
-  unit: CafeProductUnit; // g / 個
+  unit: CafeProductUnit; // 発注時の数量単位（g / 個）
   leadDays: number; // 何日前までに発注が必要か
   sortOrder: number;
 }

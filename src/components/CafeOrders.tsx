@@ -98,10 +98,8 @@ export default function CafeOrders({ me }: { me: User }) {
                   style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
                 >
                   <span>
-                    {p.name}（目安 {p.quantity}
-                    {CAFE_PRODUCT_UNIT_LABEL[p.unit]}/回
-                    {p.supplier ? ` ・発注先: ${p.supplier}` : ""}
-                    {` ・${p.leadDays}日前までに発注`}）
+                    {p.name}
+                    {`（${p.supplier ? `発注先: ${p.supplier} ・` : ""}${p.leadDays}日前までに発注）`}
                   </span>
                   <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <input
@@ -223,10 +221,7 @@ function CafeProductSettings({
             <div key={p.id} className="slot-row">
               <div className="reservation-head">
                 <span className="avail-chip">{p.name}</span>
-                <span className="tag">
-                  {p.quantity}
-                  {CAFE_PRODUCT_UNIT_LABEL[p.unit]}/回
-                </span>
+                <span className="tag">{CAFE_PRODUCT_UNIT_LABEL[p.unit]}単位</span>
               </div>
               <div className="reservation-meta">
                 {p.supplier && `発注先: ${p.supplier} ／ `}
@@ -284,19 +279,17 @@ function CafeProductEditor({
 }) {
   const [name, setName] = useState(value?.name ?? "");
   const [supplier, setSupplier] = useState(value?.supplier ?? "");
-  // 手入力しやすいよう文字列のまま保持し、保存時にだけ数値へ変換する
-  const [quantity, setQuantity] = useState(String(value?.quantity ?? 1));
   const [unit, setUnit] = useState<CafeProductUnit>(value?.unit ?? "g");
+  // 手入力しやすいよう文字列のまま保持し、保存時にだけ数値へ変換する
   const [leadDays, setLeadDays] = useState(String(value?.leadDays ?? 1));
 
   function save() {
     if (!name.trim()) return alert("商品名を入力してください");
-    const q = Math.max(1, Number(quantity) || 0);
     const d = Math.max(0, Number(leadDays) || 0);
     if (value) {
-      updateCafeProduct(value.id, { name, supplier, quantity: q, unit, leadDays: d });
+      updateCafeProduct(value.id, { name, supplier, unit, leadDays: d });
     } else {
-      addCafeProduct({ name, supplier, quantity: q, unit, leadDays: d });
+      addCafeProduct({ name, supplier, unit, leadDays: d });
     }
     onSave();
   }
@@ -320,16 +313,6 @@ function CafeProductEditor({
         />
       </label>
       <div className="row">
-        <label>
-          数量
-          <input
-            type="number"
-            min={1}
-            inputMode="numeric"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-          />
-        </label>
         <label>
           単位
           <select value={unit} onChange={(e) => setUnit(e.target.value as CafeProductUnit)}>

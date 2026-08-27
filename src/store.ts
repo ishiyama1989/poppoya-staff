@@ -978,7 +978,6 @@ function saveCafeProducts(list: CafeProduct[]): void {
 export function addCafeProduct(input: {
   name: string;
   supplier: string;
-  quantity: number;
   unit: CafeProduct["unit"];
   leadDays: number;
 }): CafeProduct {
@@ -988,7 +987,6 @@ export function addCafeProduct(input: {
     id: `cafeproduct:${uid()}`,
     name: input.name.trim(),
     supplier: input.supplier.trim(),
-    quantity: input.quantity,
     unit: input.unit,
     leadDays: input.leadDays,
     sortOrder: max + 1,
@@ -1002,7 +1000,6 @@ export function updateCafeProduct(
   input: {
     name: string;
     supplier: string;
-    quantity: number;
     unit: CafeProduct["unit"];
     leadDays: number;
   }
@@ -1014,7 +1011,6 @@ export function updateCafeProduct(
             ...p,
             name: input.name.trim(),
             supplier: input.supplier.trim(),
-            quantity: input.quantity,
             unit: input.unit,
             leadDays: input.leadDays,
           }
