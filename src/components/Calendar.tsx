@@ -47,6 +47,7 @@ import {
   deleteCafeHours,
   pendingCafeOrdersByDeadline,
   toggleCafeOrderDone,
+  deleteCafeOrder,
   getUnseenAssignedEvents,
   getUnseenRespondedRequests,
   getUsers,
@@ -908,6 +909,17 @@ function DayPanel({
                   {o.note && <div className="req-card-note">{o.note}</div>}
                   {me.role === "owner" && (
                     <div className="event-actions">
+                      <button
+                        className="ghost danger"
+                        onClick={() => {
+                          if (confirm("この発注を取り消しますか？")) {
+                            deleteCafeOrder(o.id);
+                            onChange();
+                          }
+                        }}
+                      >
+                        発注を取り消す
+                      </button>
                       <button
                         className="primary"
                         onClick={() => {
