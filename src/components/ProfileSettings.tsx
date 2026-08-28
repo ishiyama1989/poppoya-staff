@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type {
   NotificationRecipientMode,
   NotificationSchedule,
+  ReservationPlan,
   ShiftTemplate,
   ShiftTiming,
   StampFont,
@@ -19,11 +20,14 @@ import {
   SHIFT_TIMING_LABEL,
 } from "../types";
 import {
+  addReservationPlan,
   changePassword,
   deleteNotificationSchedule,
+  deleteReservationPlan,
   deleteShiftTemplate,
   getMembers,
   getNotificationSchedules,
+  getReservationPlans,
   getShiftTemplates,
   newNotificationSchedule,
   newShiftTemplate,
@@ -194,6 +198,7 @@ export default function ProfileSettings({
       )}
 
       {me.role === "owner" && <ShiftTemplateSettings />}
+      {me.role === "owner" && <ReservationPlanSettings />}
       {me.role === "owner" && <NotificationScheduleSettings />}
 
       <div className="settings-card">
@@ -642,6 +647,77 @@ function ShiftTemplateEditor({
       <div className="form-actions">
         <button className="ghost" onClick={onCancel}>キャンセル</button>
         <button className="primary" onClick={handleSave}>保存</button>
+      </div>
+    </div>
+  );
+}
+
+// オーナーが予約プラン（名前のみ）を追加・削除する設定画面
+function ReservationPlanSettings() {
+  const [plans, setPlans] = useState<ReservationPlan[]>(() => getReservationPlans());
+  const [name, setName] = useState("");
+
+  function refresh() {
+    setPlans(getReservationPlans());
+  }
+
+  function add() {
+    const text = name.trim();
+    if (!text) return;
+    addReservationPlan(text);
+    setName("");
+    refresh();
+  }
+
+  return (
+    <div className="settings-card">
+      <h3>予約プラン</h3>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        予約登録時に選べるプランをあらかじめ登録しておきます。
+      </p>
+
+      {plans.length === 0 ? (
+        <p className="muted small">まだプランが登録されていません。</p>
+      ) : (
+        <div className="tpl-chips">
+          {plans.map((p) => (
+            <span key={p.id} className="tpl-chip">
+              <span className="tpl-insert" style={{ cursor: "default" }}>
+                {p.name}
+              </span>
+              <button
+                type="button"
+                className="tpl-del"
+                onClick={() => {
+                  if (confirm(`プラン「${p.name}」を削除しますか？`)) {
+                    deleteReservationPlan(p.id);
+                    refresh();
+                  }
+                }}
+                title="このプランを削除"
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="tpl-add">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder="例: 素泊まりプラン"
+        />
+        <button type="button" className="ghost mini" onClick={add}>
+          ＋追加
+        </button>
       </div>
     </div>
   );

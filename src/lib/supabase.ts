@@ -14,6 +14,7 @@ import type {
   PayConfirmation,
   Recipient,
   Reservation,
+  ReservationPlan,
   ScheduleEvent,
   ShiftTemplate,
   TimeClock,
@@ -308,6 +309,7 @@ const toDbReservation = (r: Reservation) => ({
   status: r.status,
   payment_method: r.paymentMethod ?? null,
   payment_amount: r.paymentAmount ?? null,
+  plan_id: r.planId ?? null,
 })
 
 const fromDbReservation = (r: any): Reservation => ({
@@ -328,6 +330,19 @@ const fromDbReservation = (r: any): Reservation => ({
   status: r.status ?? 'confirmed',
   paymentMethod: r.payment_method ?? undefined,
   paymentAmount: r.payment_amount ?? undefined,
+  planId: r.plan_id ?? undefined,
+})
+
+const toDbReservationPlan = (p: ReservationPlan) => ({
+  id: p.id,
+  name: p.name,
+  sort_order: p.sortOrder,
+})
+
+const fromDbReservationPlan = (p: any): ReservationPlan => ({
+  id: p.id,
+  name: p.name ?? '',
+  sortOrder: p.sort_order ?? 0,
 })
 
 const toDbCafeHours = (c: CafeHours) => ({
@@ -564,6 +579,10 @@ export function syncReservations(list: Reservation[]): void {
   upsertRows('reservations', list, toDbReservation, 'id').catch(() => {})
 }
 
+export function syncReservationPlans(list: ReservationPlan[]): void {
+  upsertRows('reservation_plans', list, toDbReservationPlan, 'id').catch(() => {})
+}
+
 export function syncCafeHours(list: CafeHours[]): void {
   upsertRows('cafe_hours', list, toDbCafeHours, 'id').catch(() => {})
 }
@@ -591,6 +610,7 @@ export async function loadOrgData(): Promise<void> {
     templates, approvals, reservations,
     timeClocks, checklistItems, handoverNotes, attendanceAlerts,
     cafeHours, shiftTemplates, notificationSchedules, cafeOrders, cafeProducts,
+    reservationPlans,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
     supabase.from('schedule_events').select('*'),
@@ -610,6 +630,7 @@ export async function loadOrgData(): Promise<void> {
     supabase.from('notification_schedules').select('*'),
     supabase.from('cafe_orders').select('*'),
     supabase.from('cafe_products').select('*'),
+    supabase.from('reservation_plans').select('*'),
   ])
   // 読み込みに失敗したテーブルは上書きせず前回の内容を残し、原因を記録する。
   // （黙って空にすると、画面上はデータが消えたようにしか見えないため）
@@ -642,6 +663,7 @@ export async function loadOrgData(): Promise<void> {
   put('sns_notification_schedules', notificationSchedules, fromDbNotificationSchedule)
   put('sns_cafe_orders', cafeOrders, fromDbCafeOrder)
   put('sns_cafe_products', cafeProducts, fromDbCafeProduct)
+  put('sns_reservation_plans', reservationPlans, fromDbReservationPlan)
 }
 
 // ---- Hydration: Supabase → localStorage on app start（旧・単一テナント用。SaaS版では未使用） ----

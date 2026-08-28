@@ -13,6 +13,7 @@ import type {
   Recipient,
   RecipientType,
   Reservation,
+  ReservationPlan,
   Role,
   ScheduleEvent,
   ShiftTemplate,
@@ -45,6 +46,7 @@ import {
   syncChecklistItems,
   syncHandoverNotes,
   syncReservations,
+  syncReservationPlans,
   syncCafeHours,
   syncCafeOrders,
   syncCafeProducts,
@@ -64,6 +66,7 @@ const KEYS = {
   recipients: "sns_recipients",
   eventApprovals: "sns_event_approvals",
   reservations: "sns_reservations",
+  reservationPlans: "sns_reservation_plans",
   cafeHours: "sns_cafe_hours",
   cafeOrders: "sns_cafe_orders",
   cafeProducts: "sns_cafe_products",
@@ -878,6 +881,41 @@ export function newManualReservation(date: string): Reservation {
 export function deleteReservation(id: string): void {
   write(KEYS.reservations, getReservations().filter((r) => r.id !== id));
   deleteRemote("reservations", { id });
+}
+
+// ---- 予約プラン（オーナーが設定画面で追加・削除する。名前のみ） ----
+export function getReservationPlans(): ReservationPlan[] {
+  return read<ReservationPlan[]>(KEYS.reservationPlans, []).sort(
+    (a, b) => a.sortOrder - b.sortOrder
+  );
+}
+
+function saveReservationPlans(list: ReservationPlan[]): void {
+  write(KEYS.reservationPlans, list);
+  syncReservationPlans(list);
+}
+
+export function addReservationPlan(name: string): ReservationPlan {
+  const list = getReservationPlans();
+  const max = list.reduce((m, p) => Math.max(m, p.sortOrder), 0);
+  const plan: ReservationPlan = {
+    id: `plan:${uid()}`,
+    name: name.trim(),
+    sortOrder: max + 1,
+  };
+  saveReservationPlans([...list, plan]);
+  return plan;
+}
+
+export function deleteReservationPlan(id: string): void {
+  write(KEYS.reservationPlans, getReservationPlans().filter((p) => p.id !== id));
+  deleteRemote("reservation_plans", { id });
+}
+
+// プランIDから名前を引く（予約一覧の表示などで使う）
+export function reservationPlanNameById(id?: string): string {
+  if (!id) return "";
+  return getReservationPlans().find((p) => p.id === id)?.name ?? "";
 }
 
 // ---- LOCOMO CAFE の営業時間（1日1件） ----

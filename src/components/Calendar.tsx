@@ -70,6 +70,8 @@ import {
   upsertReservation,
   deleteReservation,
   newManualReservation,
+  getReservationPlans,
+  reservationPlanNameById,
   requestsOn,
   toggleChecklistItem,
   upsertEvent,
@@ -853,6 +855,9 @@ function DayPanel({
                     <span className="tag muted">
                       {RESERVATION_SOURCE_LABEL[r.source] ?? r.source}
                     </span>
+                    {r.planId && (
+                      <span className="tag muted">{reservationPlanNameById(r.planId)}</span>
+                    )}
                   </div>
                   <div className="reservation-meta">
                     {r.checkinDate.slice(5).replace("-", "/")}〜
@@ -1432,6 +1437,7 @@ function ReservationForm({
   const [draft, setDraft] = useState<Reservation>(value);
   // 同じお客様がトレインルーム・レトロルームを両方申し込むことがあるため複数選択可
   const [selectedRooms, setSelectedRooms] = useState<string[]>([value.roomType]);
+  const reservationPlans = getReservationPlans();
   // 手入力しやすいよう文字列のまま保持し、保存時にだけ数値へ変換する
   const [amountStr, setAmountStr] = useState(String(value.paymentAmount ?? 0));
 
@@ -1510,6 +1516,25 @@ function ReservationForm({
             <option key={s} value={s}>{RESERVATION_SOURCE_LABEL[s]}</option>
           ))}
         </select>
+      </label>
+
+      <label>
+        プラン
+        {reservationPlans.length === 0 ? (
+          <p className="muted small">
+            まだプランが登録されていません。設定画面から追加してください。
+          </p>
+        ) : (
+          <select
+            value={draft.planId ?? ""}
+            onChange={(e) => set("planId", e.target.value || undefined)}
+          >
+            <option value="">選択なし</option>
+            {reservationPlans.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        )}
       </label>
 
       <div className="row">

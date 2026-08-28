@@ -184,7 +184,16 @@ create table reservations (
   status text not null default 'confirmed', synced_at timestamptz default now(),
   payment_method text, -- 'onsite'（現地決済） | 'prepaid'（事前決済）。未設定は既存データ
   payment_amount integer, -- 現地決済の金額（円）。事前決済のときは0
+  plan_id text, -- 予約プラン（reservation_plans.id）
   unique (org_id, neppan_booking_id)
+);
+
+-- 予約プラン（オーナーが設定画面で追加・削除する。名前のみ）
+create table reservation_plans (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  name text not null,
+  sort_order integer not null default 0
 );
 
 -- LOCOMO CAFEの営業時間（1日1件。営業する日だけ登録する）
@@ -361,6 +370,23 @@ create policy cafeproduct_upd on cafe_products for update using (
 create policy cafeproduct_del on cafe_products for delete using (
   org_id = auth_org_id()
   and exists (select 1 from profiles me where me.id = auth.uid() and me.role in ('owner', 'cafe_manager'))
+);
+
+-- reservation_plans は組織メンバー全員が閲覧可（予約一覧にプラン名を出すため）、
+-- 追加・編集・削除はオーナーのみ。
+alter table reservation_plans enable row level security;
+create policy resplan_sel on reservation_plans for select using (org_id = auth_org_id());
+create policy resplan_ins on reservation_plans for insert with check (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
+);
+create policy resplan_upd on reservation_plans for update using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
+) with check (org_id = auth_org_id());
+create policy resplan_del on reservation_plans for delete using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'owner')
 );
 
 -- notification_schedules は管理者(owner)のみ読み書き可。送信自体はEdge Functionが

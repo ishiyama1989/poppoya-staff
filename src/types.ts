@@ -217,6 +217,7 @@ export interface Reservation {
   status: ReservationStatus;
   paymentMethod?: PaymentMethod; // 決済方法（未設定＝過去に登録された予約）
   paymentAmount?: number; // 現地決済の金額（円）。事前決済のときは0
+  planId?: string; // 予約プラン（ReservationPlan.id）
 }
 
 // 予約の決済方法
@@ -226,6 +227,13 @@ export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   onsite: "現地決済",
   prepaid: "事前決済",
 };
+
+// 予約プラン（オーナーが設定画面で追加・削除する。名前のみ）
+export interface ReservationPlan {
+  id: string;
+  name: string;
+  sortOrder: number;
+}
 
 // LOCOMO CAFEの営業時間（1日1件。営業する日だけ登録する）
 export interface CafeHours {
