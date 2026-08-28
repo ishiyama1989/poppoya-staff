@@ -870,6 +870,8 @@ export function newManualReservation(date: string): Reservation {
     pastStayCount: 0,
     note: "",
     status: "confirmed",
+    paymentMethod: "prepaid",
+    paymentAmount: 0,
   };
 }
 

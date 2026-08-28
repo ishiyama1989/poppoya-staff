@@ -306,6 +306,8 @@ const toDbReservation = (r: Reservation) => ({
   past_stay_count: r.pastStayCount,
   note: r.note,
   status: r.status,
+  payment_method: r.paymentMethod ?? null,
+  payment_amount: r.paymentAmount ?? null,
 })
 
 const fromDbReservation = (r: any): Reservation => ({
@@ -324,6 +326,8 @@ const fromDbReservation = (r: any): Reservation => ({
   pastStayCount: r.past_stay_count ?? 0,
   note: r.note ?? '',
   status: r.status ?? 'confirmed',
+  paymentMethod: r.payment_method ?? undefined,
+  paymentAmount: r.payment_amount ?? undefined,
 })
 
 const toDbCafeHours = (c: CafeHours) => ({

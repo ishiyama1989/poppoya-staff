@@ -182,6 +182,8 @@ create table reservations (
   past_stay_count integer default 0,
   note text default '',
   status text not null default 'confirmed', synced_at timestamptz default now(),
+  payment_method text, -- 'onsite'（現地決済） | 'prepaid'（事前決済）。未設定は既存データ
+  payment_amount integer, -- 現地決済の金額（円）。事前決済のときは0
   unique (org_id, neppan_booking_id)
 );
 

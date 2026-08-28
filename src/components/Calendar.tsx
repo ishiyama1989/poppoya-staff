@@ -5,6 +5,7 @@ import {
   EVENT_TYPE_COLOR,
   EVENT_TYPE_LABEL,
   EVENT_TYPES,
+  PAYMENT_METHOD_LABEL,
   REQUEST_STATUS_LABEL,
   RESERVATION_SOURCE_LABEL,
   MANUAL_RESERVATION_SOURCES,
@@ -15,6 +16,7 @@ import {
   type CafeHours,
   type ChecklistItem,
   type EventType,
+  type PaymentMethod,
   type Reservation,
   type ScheduleEvent,
   type ShiftTemplate,
@@ -863,6 +865,18 @@ function DayPanel({
                   {r.address && <div className="reservation-meta">📍 {r.address}</div>}
                   {r.note && <div className="event-note">{r.note}</div>}
                   {me.role === "owner" && (
+                    <div className="reservation-meta">
+                      💴{" "}
+                      {r.paymentMethod
+                        ? `${PAYMENT_METHOD_LABEL[r.paymentMethod]}${
+                            r.paymentMethod === "onsite"
+                              ? `・${(r.paymentAmount ?? 0).toLocaleString()}円`
+                              : ""
+                          }`
+                        : "決済方法未設定"}
+                    </div>
+                  )}
+                  {me.role === "owner" && (
                     <div className="event-actions">
                       <button className="ghost" onClick={() => setEditingReservation(r)}>
                         編集
@@ -1418,9 +1432,16 @@ function ReservationForm({
   const [draft, setDraft] = useState<Reservation>(value);
   // 同じお客様がトレインルーム・レトロルームを両方申し込むことがあるため複数選択可
   const [selectedRooms, setSelectedRooms] = useState<string[]>([value.roomType]);
+  // 手入力しやすいよう文字列のまま保持し、保存時にだけ数値へ変換する
+  const [amountStr, setAmountStr] = useState(String(value.paymentAmount ?? 0));
 
   function set<K extends keyof Reservation>(key: K, val: Reservation[K]) {
     setDraft((d) => ({ ...d, [key]: val }));
+  }
+
+  function setPaymentMethod(pm: PaymentMethod) {
+    setDraft((d) => ({ ...d, paymentMethod: pm }));
+    if (pm === "prepaid") setAmountStr("0");
   }
 
   function toggleRoom(room: string) {
@@ -1439,11 +1460,14 @@ function ReservationForm({
       return alert("チェックアウト日はチェックイン日より後にしてください");
 
     const guestName = draft.guestName.trim();
+    const paymentAmount =
+      draft.paymentMethod === "onsite" ? Math.max(0, Number(amountStr) || 0) : 0;
+    const base = { ...draft, guestName, paymentAmount };
     // 選択した部屋ごとに1件ずつ予約を作る。元の部屋はIDを維持し、追加分は新規発行する
     const candidates: Reservation[] = selectedRooms.map((room) => {
-      if (room === draft.roomType) return { ...draft, guestName };
+      if (room === base.roomType) return base;
       const key = `manual:${uid()}`;
-      return { ...draft, id: key, neppanBookingId: key, roomType: room, guestName };
+      return { ...base, id: key, neppanBookingId: key, roomType: room };
     });
 
     // 1室につき1日1組までなので、期間が重なる予約があれば登録させない
@@ -1584,6 +1608,40 @@ function ReservationForm({
           </select>
         </label>
       </div>
+
+      <label>
+        決済方法
+        <div className="shape-toggle">
+          {(["onsite", "prepaid"] as PaymentMethod[]).map((pm) => (
+            <button
+              key={pm}
+              type="button"
+              className={`type-btn ${draft.paymentMethod === pm ? "on" : ""}`}
+              onClick={() => setPaymentMethod(pm)}
+            >
+              {PAYMENT_METHOD_LABEL[pm]}
+            </button>
+          ))}
+        </div>
+      </label>
+
+      {draft.paymentMethod === "onsite" ? (
+        <label>
+          金額
+          <input
+            type="number"
+            min={0}
+            inputMode="numeric"
+            value={amountStr}
+            onChange={(e) => setAmountStr(e.target.value)}
+            placeholder="例: 8000"
+          />
+        </label>
+      ) : (
+        draft.paymentMethod === "prepaid" && (
+          <p className="muted small">事前決済のため、現地でのお支払いは0円です。</p>
+        )
+      )}
 
       <label>
         メモ（オプション・任意）

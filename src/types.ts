@@ -215,7 +215,17 @@ export interface Reservation {
   pastStayCount: number; // 過去の宿泊回数（0=今回が初めて）
   note: string;
   status: ReservationStatus;
+  paymentMethod?: PaymentMethod; // 決済方法（未設定＝過去に登録された予約）
+  paymentAmount?: number; // 現地決済の金額（円）。事前決済のときは0
 }
+
+// 予約の決済方法
+export type PaymentMethod = "onsite" | "prepaid";
+
+export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+  onsite: "現地決済",
+  prepaid: "事前決済",
+};
 
 // LOCOMO CAFEの営業時間（1日1件。営業する日だけ登録する）
 export interface CafeHours {
