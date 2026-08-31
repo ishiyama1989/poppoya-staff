@@ -74,6 +74,15 @@ begin
   return target_org;
 end $$;
 
+-- サインアップ直後・プロフィール作成前のユーザーが、参加予定の（最初に作られた）
+-- 会社の配色テーマだけを見られるようにする（ようこそ画面の背景色を合わせるため）。
+-- organizations テーブル自体はプロフィール作成前は閲覧できないため、テーマだけを
+-- 限定的に返すSECURITY DEFINER関数として用意する。
+create or replace function get_org_theme() returns text
+language sql stable security definer set search_path = public as $$
+  select theme from organizations order by created_at limit 1
+$$;
+
 -- ---- データテーブル（すべて org_id を持ち、RLSで自組織のみ） ----
 create table schedule_events (
   id text primary key,

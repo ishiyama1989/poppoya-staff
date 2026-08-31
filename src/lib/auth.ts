@@ -115,6 +115,13 @@ export async function getMyOrg(): Promise<Org | null> {
   };
 }
 
+// プロフィール作成前（ようこそ画面）でも、参加予定の会社の配色テーマだけ取得できる
+export async function getOrgThemeBeforeJoin(): Promise<string> {
+  const { data, error } = await supabase.rpc("get_org_theme");
+  if (error || !data) return "coral";
+  return data as string;
+}
+
 // 会社の配色テーマを変更する
 export async function updateOrgTheme(
   orgId: string,

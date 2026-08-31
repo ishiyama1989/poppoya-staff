@@ -1,11 +1,17 @@
-import { useState } from "react";
-import { joinOrCreateOrg, signOut } from "../lib/auth";
+import { useEffect, useState } from "react";
+import { getOrgThemeBeforeJoin, joinOrCreateOrg, signOut } from "../lib/auth";
+import { applyTheme } from "../lib/theme";
 
 // サインアップ後：お名前を入力するだけで参加完了（1社専用のため会社作成・招待コードは不要）
 export default function CreateOrg({ onCreated }: { onCreated: () => void }) {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  // 設定で選ばれている配色テーマをこの画面にも反映する
+  useEffect(() => {
+    getOrgThemeBeforeJoin().then(applyTheme);
+  }, []);
 
   async function submit() {
     setError("");
