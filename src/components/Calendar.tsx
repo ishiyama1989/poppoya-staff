@@ -1226,7 +1226,8 @@ function DayPanel({
                   {REQUEST_STATUS_LABEL[r.status]}
                 </span>
                 <span className="req-text">
-                  {users.find((u) => u.id === r.toUserId)?.name} ／ {r.title}
+                  {users.find((u) => u.id === r.toUserId)?.name} ／ {r.title} ／{" "}
+                  {r.date.slice(5).replace("-", "/")} {r.start}〜
                 </span>
               </div>
             ))}
