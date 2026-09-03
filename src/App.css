@@ -910,6 +910,11 @@ label input, label select, label textarea { margin-top: 6px; font-weight: 400; }
 }
 .cal-more { font-size: 10px; color: var(--muted); font-weight: 600; }
 
+/* 業務コマの状態色：依頼前=赤／依頼中（承認待ち）=黄／承認済み=青 */
+.cal-chip.status-before { background: #ef4444; }
+.cal-chip.status-pending { background: #eab308; color: #4a3800; }
+.cal-chip.status-approved { background: #3b82f6; }
+
 
 /* ===== モーダル ===== */
 .modal-backdrop {

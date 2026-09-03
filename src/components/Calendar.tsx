@@ -13,6 +13,7 @@ import {
   GUEST_COUNT_OPTIONS,
   STAY_COUNT_OPTIONS,
   CHECKIN_TIME_OPTIONS,
+  type AppRequest,
   type CafeHours,
   type ChecklistItem,
   type EventType,
@@ -37,6 +38,7 @@ import {
   eventsAwaitingAdmin,
   getMembers,
   getReservations,
+  getRequests,
   getShiftTemplates,
   shiftTemplateNameById,
   eventsForUserOn,
@@ -177,6 +179,65 @@ function buildShiftSlots(
   );
 }
 
+// 予約×コマ設定から、日付ごとに発生するはずの業務コマ一覧を作る（依頼状況の判定に使う）。
+function buildSlotsByDate(
+  reservations: Reservation[],
+  templates: ShiftTemplate[]
+): Record<string, ShiftSlot[]> {
+  const map: Record<string, ShiftSlot[]> = {};
+  for (const r of reservations) {
+    if (r.status !== "confirmed") continue;
+    for (const t of templates)
+      for (const s of expandTemplate(t, r.checkinDate, r.checkoutDate)) (map[s.date] ??= []).push(s);
+  }
+  for (const d of Object.keys(map)) {
+    const merged = new Map<string, ShiftSlot>();
+    for (const s of map[d]) if (!merged.has(slotKey(s))) merged.set(slotKey(s), s);
+    map[d] = [...merged.values()].sort((a, b) => a.start.localeCompare(b.start));
+  }
+  return map;
+}
+
+// 業務の状態：依頼前（まだ誰にも依頼していない）／依頼中（承認待ち）／承認済み（担当者確定）
+type TaskStatus = "before" | "pending" | "approved";
+
+const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
+  before: "依頼前",
+  pending: "依頼中（承認待ち）",
+  approved: "承認済み",
+};
+
+type TaskChip = { key: string; title: string; status: TaskStatus };
+
+// その日の業務コマ（清掃・朝食対応など）を、既存の予定・依頼と突き合わせて状態付きで一覧化する。
+// コマに一致しない予定（手動作成した予定など）はそのまま「承認済み」として末尾に追加する。
+function taskChipsForDate(
+  slots: ShiftSlot[],
+  dayEvents: ScheduleEvent[],
+  dayRequests: AppRequest[]
+): TaskChip[] {
+  const chips: TaskChip[] = [];
+  const usedEventIds = new Set<string>();
+  for (const s of slots) {
+    const matchedEvent = dayEvents.find(
+      (e) => !usedEventIds.has(e.id) && e.title === s.title && e.start === s.start && e.end === s.end
+    );
+    if (matchedEvent) {
+      usedEventIds.add(matchedEvent.id);
+      chips.push({ key: matchedEvent.id, title: s.title, status: "approved" });
+      continue;
+    }
+    const isPending = dayRequests.some(
+      (r) => r.status === "pending" && r.title === s.title && r.start === s.start && r.end === s.end
+    );
+    chips.push({ key: `slot-${slotKey(s)}`, title: s.title, status: isPending ? "pending" : "before" });
+  }
+  for (const e of dayEvents) {
+    if (!usedEventIds.has(e.id)) chips.push({ key: e.id, title: e.title, status: "approved" });
+  }
+  return chips;
+}
+
 export default function Calendar({
   me,
   onOpenRequests,
@@ -272,6 +333,19 @@ export default function Calendar({
     }
     return map;
   }, [reservations]);
+
+  // 業務コマの状態表示（依頼前・依頼中・承認済み）に使う、コマ設定と依頼一覧
+  const shiftTemplates = useMemo(() => getShiftTemplates(), [version]);
+  const slotsByDate = useMemo(
+    () => buildSlotsByDate(reservations, shiftTemplates),
+    [reservations, shiftTemplates]
+  );
+  const requests = useMemo(() => getRequests(), [version]);
+  const requestsByDate = useMemo(() => {
+    const map: Record<string, AppRequest[]> = {};
+    for (const r of requests) (map[r.date] ??= []).push(r);
+    return map;
+  }, [requests]);
 
   // LOCOMO CAFEの営業時間（日付ごとに1件）
   const cafeHours = useMemo(() => getCafeHours(), [version]);
@@ -592,6 +666,7 @@ export default function Calendar({
             const ds = ymd(d);
             const inMonth = d.getMonth() === month;
             const dayEvents = eventsByDate[ds] ?? [];
+            const dayChips = taskChipsForDate(slotsByDate[ds] ?? [], dayEvents, requestsByDate[ds] ?? []);
             const isDragOver = dragOverDate === ds;
             const isSearchHit = searchMatchDates.has(ds);
             const isMyDay = !isOwner && inMonth && dayEvents.some((e) => e.assigneeIds.includes(me.id));
@@ -679,28 +754,30 @@ export default function Calendar({
                   </div>
                 )}
                 <div className="cal-events">
-                  {dayEvents.slice(0, 3).map((e) => (
-                    <div
-                      key={e.id}
-                      className={`cal-chip ${isOwner ? "draggable" : ""} ${!isOwner && e.assigneeIds.includes(me.id) ? "my-chip" : ""}`}
-                      style={{ background: EVENT_TYPE_COLOR[e.type] }}
-                      title={e.title}
-                      draggable={isOwner}
-                      onDragStart={isOwner ? (ev) => {
-                        ev.stopPropagation();
-                        draggingId.current = e.id;
-                        ev.dataTransfer.effectAllowed = "move";
-                      } : undefined}
-                      onDragEnd={isOwner ? () => {
-                        draggingId.current = null;
-                        setDragOverDate(null);
-                      } : undefined}
-                    >
-                      {e.title}
-                    </div>
-                  ))}
-                  {dayEvents.length > 3 && (
-                    <div className="cal-more">+{dayEvents.length - 3}</div>
+                  {dayChips.slice(0, 3).map((c) => {
+                    const evt = dayEvents.find((e) => e.id === c.key);
+                    return (
+                      <div
+                        key={c.key}
+                        className={`cal-chip status-${c.status} ${isOwner && evt ? "draggable" : ""} ${!isOwner && evt?.assigneeIds.includes(me.id) ? "my-chip" : ""}`}
+                        title={`${c.title}（${TASK_STATUS_LABEL[c.status]}）`}
+                        draggable={isOwner && !!evt}
+                        onDragStart={isOwner && evt ? (ev) => {
+                          ev.stopPropagation();
+                          draggingId.current = evt.id;
+                          ev.dataTransfer.effectAllowed = "move";
+                        } : undefined}
+                        onDragEnd={isOwner && evt ? () => {
+                          draggingId.current = null;
+                          setDragOverDate(null);
+                        } : undefined}
+                      >
+                        {c.title}
+                      </div>
+                    );
+                  })}
+                  {dayChips.length > 3 && (
+                    <div className="cal-more">+{dayChips.length - 3}</div>
                   )}
                 </div>
               </div>
