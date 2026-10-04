@@ -490,10 +490,40 @@ export function markRespondedRequestsSeen(userId: string): void {
   write(seenRespondedRequestsKey(userId), ids);
 }
 
-export function approveRequest(id: string): void {
+// コマの必要人員に対する承認状況。同じ日・業務名・時間の予定の担当者を重複なしで数える。
+// コマ設定に一致しない依頼（手動依頼など）や、必要人員が未設定のコマは required=undefined（上限なし）。
+export function slotStaffStatus(
+  date: string,
+  title: string,
+  start: string,
+  end: string
+): { required?: number; assigneeIds: Set<string> } {
+  const required = getShiftTemplates().find(
+    (t) => t.name === title && t.startTime === start && t.endTime === end
+  )?.requiredStaff;
+  const assigneeIds = new Set(
+    getEvents()
+      .filter((e) => e.date === date && e.title === title && e.start === start && e.end === end)
+      .flatMap((e) => e.assigneeIds)
+  );
+  return { required: required && required > 0 ? required : undefined, assigneeIds };
+}
+
+// この依頼を承認すると必要人員を超えてしまうか（すでに本人が担当者なら人数は増えないので対象外）
+export function isRequestSlotFull(
+  r: Pick<AppRequest, "date" | "title" | "start" | "end" | "toUserId">
+): boolean {
+  const { required, assigneeIds } = slotStaffStatus(r.date, r.title, r.start, r.end);
+  return required !== undefined && assigneeIds.size >= required && !assigneeIds.has(r.toUserId);
+}
+
+export const SLOT_FULL_MESSAGE = "必要人員が満たされています";
+
+export function approveRequest(id: string): { ok: true } | { ok: false; error: string } {
   const rs = getRequests();
   const r = rs.find((x) => x.id === id);
-  if (!r || r.status !== "pending") return;
+  if (!r || r.status !== "pending") return { ok: false, error: "この依頼は承認できません" };
+  if (isRequestSlotFull(r)) return { ok: false, error: SLOT_FULL_MESSAGE };
   r.status = "approved";
   saveRequests(rs);
 
@@ -526,7 +556,7 @@ export function approveRequest(id: string): void {
       note: r.note,
       assigneeIds,
     });
-    return;
+    return { ok: true };
   }
   // 3) 元になる予定がない（手動依頼など）場合のみ新規作成
   upsertEvent({
@@ -540,6 +570,7 @@ export function approveRequest(id: string): void {
     end: r.end,
     note: r.note,
   });
+  return { ok: true };
 }
 
 export function rejectRequest(id: string): void {

@@ -252,7 +252,8 @@ create table shift_templates (
   timing text not null default 'checkin',
   start_time text not null default '09:00',
   end_time text not null default '17:00',
-  sort_order integer not null default 0
+  sort_order integer not null default 0,
+  required_staff integer -- 必要人員（nullなら上限なし）
 );
 
 -- 解析できなかった予約通知メール（書式変更の検知・後から手動対応するため保存）

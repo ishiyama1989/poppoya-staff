@@ -528,6 +528,8 @@ function ShiftTemplateSettings() {
               </div>
               <div className="reservation-meta">
                 {t.startTime}〜{t.endTime}
+                <span className="reservation-sep">·</span>
+                {t.requiredStaff ? `必要人員 ${t.requiredStaff}人` : "必要人員 上限なし"}
               </div>
               <div className="event-actions">
                 <button className="ghost" onClick={() => setEditing(t)}>
@@ -581,6 +583,10 @@ function ShiftTemplateEditor({
   onSave: (t: ShiftTemplate) => void;
 }) {
   const [draft, setDraft] = useState<ShiftTemplate>(value);
+  // 数値欄は入力途中の文字列をそのまま持ち、保存時にだけ数値へ直す（打ち込み中に桁が崩れないように）
+  const [requiredStr, setRequiredStr] = useState(
+    value.requiredStaff ? String(value.requiredStaff) : ""
+  );
 
   function set<K extends keyof ShiftTemplate>(key: K, val: ShiftTemplate[K]) {
     setDraft((d) => ({ ...d, [key]: val }));
@@ -600,7 +606,10 @@ function ShiftTemplateEditor({
     if (draft.timings.length === 0) return alert("いつの業務か、1つ以上選んでください");
     if (draft.endTime <= draft.startTime)
       return alert("終了時間は開始時間より後にしてください");
-    onSave({ ...draft, name: draft.name.trim() });
+    const required = requiredStr.trim() === "" ? undefined : Math.floor(Number(requiredStr));
+    if (required !== undefined && (!Number.isFinite(required) || required < 1))
+      return alert("必要人員は1以上の数字を入力してください（空欄なら上限なし）");
+    onSave({ ...draft, name: draft.name.trim(), requiredStaff: required });
   }
 
   return (
@@ -644,6 +653,20 @@ function ShiftTemplateEditor({
           />
         </label>
       </div>
+      <label>
+        必要人員（人）
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          value={requiredStr}
+          onChange={(e) => setRequiredStr(e.target.value)}
+          placeholder="空欄＝上限なし"
+        />
+      </label>
+      <p className="muted small" style={{ marginTop: 0 }}>
+        承認済みの人数がこの人数に達すると、そのコマはそれ以上の承認・依頼ができなくなります。
+      </p>
       <div className="form-actions">
         <button className="ghost" onClick={onCancel}>キャンセル</button>
         <button className="primary" onClick={handleSave}>保存</button>

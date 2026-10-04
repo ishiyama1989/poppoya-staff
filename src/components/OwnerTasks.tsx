@@ -3,7 +3,9 @@ import type { EventType, RequestStatus, User } from "../types";
 import { EVENT_TYPE_LABEL, EVENT_TYPES, REQUEST_STATUS_LABEL } from "../types";
 import {
   addRequest,
+  SLOT_FULL_MESSAGE,
   approveRequest,
+  isRequestSlotFull,
   getMembers,
   getUsers,
   pendingRequestsForUser,
@@ -84,6 +86,11 @@ export default function OwnerTasks({ me }: { me: User }) {
                   依頼者: {userNameById[r.fromUserId] ?? "管理者"}
                 </div>
                 {r.note && <div className="req-card-note">{r.note}</div>}
+                {isRequestSlotFull(r) && (
+                  <p className="muted small" style={{ margin: "4px 0", color: "var(--danger)" }}>
+                    ⚠️ {SLOT_FULL_MESSAGE}（これ以上承認できません）
+                  </p>
+                )}
                 <div className="req-card-actions">
                   <button
                     className="ghost danger"
@@ -96,8 +103,10 @@ export default function OwnerTasks({ me }: { me: User }) {
                   </button>
                   <button
                     className="primary"
+                    disabled={isRequestSlotFull(r)}
                     onClick={() => {
-                      approveRequest(r.id);
+                      const res = approveRequest(r.id);
+                      if (!res.ok) alert(res.error);
                       refresh();
                     }}
                   >

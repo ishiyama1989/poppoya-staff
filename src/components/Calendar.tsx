@@ -27,7 +27,10 @@ import {
 import {
   addChecklistItem,
   addRequest,
+  SLOT_FULL_MESSAGE,
+  slotStaffStatus,
   approveRequest,
+  isRequestSlotFull,
   availabilityOn,
   deleteChecklistItem,
   deleteEvent,
@@ -114,7 +117,14 @@ for (let h = 0; h < 24; h++) {
 }
 
 // シフトの1コマ（実際に働く日・時間・業務内容）
-type ShiftSlot = { date: string; start: string; end: string; title: string; templateId: string };
+type ShiftSlot = {
+  date: string;
+  start: string;
+  end: string;
+  title: string;
+  templateId: string;
+  requiredStaff?: number; // コマ設定の必要人員（未設定=上限なし）
+};
 
 // 1つの timing が、宿泊期間中どの日付に発生するかを返す。
 function datesForTiming(timing: ShiftTiming, checkin: string, checkout: string): string[] {
@@ -149,6 +159,7 @@ function expandTemplate(t: ShiftTemplate, checkin: string, checkout: string): Sh
     end: t.endTime,
     title: t.name,
     templateId: t.id,
+    requiredStaff: t.requiredStaff,
   }));
 }
 
@@ -207,7 +218,8 @@ const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
   approved: "承認済み",
 };
 
-type TaskChip = { key: string; title: string; status: TaskStatus };
+// count=承認済みの人数、required=必要人員（未設定なら表示しない）
+type TaskChip = { key: string; title: string; status: TaskStatus; count: number; required?: number };
 
 // その日の業務コマ（清掃・朝食対応など）を、既存の予定・依頼と突き合わせて状態付きで一覧化する。
 // コマに一致しない予定（手動作成した予定など）はそのまま「承認済み」として末尾に追加する。
@@ -219,21 +231,32 @@ function taskChipsForDate(
   const chips: TaskChip[] = [];
   const usedEventIds = new Set<string>();
   for (const s of slots) {
-    const matchedEvent = dayEvents.find(
+    const matched = dayEvents.filter(
       (e) => !usedEventIds.has(e.id) && e.title === s.title && e.start === s.start && e.end === s.end
     );
-    if (matchedEvent) {
-      usedEventIds.add(matchedEvent.id);
-      chips.push({ key: matchedEvent.id, title: s.title, status: "approved" });
+    for (const e of matched) usedEventIds.add(e.id);
+    const count = new Set(matched.flatMap((e) => e.assigneeIds)).size;
+    const required = s.requiredStaff && s.requiredStaff > 0 ? s.requiredStaff : undefined;
+    // 必要人員が設定されていれば、その人数が承認で揃って初めて「承認済み」。未設定なら1件でもあれば承認済み
+    const satisfied = required !== undefined ? count >= required : matched.length > 0;
+    if (satisfied) {
+      chips.push({ key: matched[0].id, title: s.title, status: "approved", count, required });
       continue;
     }
     const isPending = dayRequests.some(
       (r) => r.status === "pending" && r.title === s.title && r.start === s.start && r.end === s.end
     );
-    chips.push({ key: `slot-${slotKey(s)}`, title: s.title, status: isPending ? "pending" : "before" });
+    chips.push({
+      key: matched[0]?.id ?? `slot-${slotKey(s)}`,
+      title: s.title,
+      status: isPending ? "pending" : "before",
+      count,
+      required,
+    });
   }
   for (const e of dayEvents) {
-    if (!usedEventIds.has(e.id)) chips.push({ key: e.id, title: e.title, status: "approved" });
+    if (!usedEventIds.has(e.id))
+      chips.push({ key: e.id, title: e.title, status: "approved", count: e.assigneeIds.length });
   }
   return chips;
 }
@@ -502,12 +525,15 @@ export default function Calendar({
                   </button>
                   <button
                     className="primary mini"
+                    disabled={isRequestSlotFull(r)}
+                    title={isRequestSlotFull(r) ? SLOT_FULL_MESSAGE : undefined}
                     onClick={() => {
-                      approveRequest(r.id);
+                      const res = approveRequest(r.id);
+                      if (!res.ok) alert(res.error);
                       refresh();
                     }}
                   >
-                    承認
+                    {isRequestSlotFull(r) ? "満員" : "承認"}
                   </button>
                 </div>
               </div>
@@ -760,7 +786,9 @@ export default function Calendar({
                       <div
                         key={c.key}
                         className={`cal-chip status-${c.status} ${isOwner && evt ? "draggable" : ""} ${!isOwner && evt?.assigneeIds.includes(me.id) ? "my-chip" : ""}`}
-                        title={`${c.title}（${TASK_STATUS_LABEL[c.status]}）`}
+                        title={`${c.title}（${TASK_STATUS_LABEL[c.status]}${
+                          c.required ? `・承認 ${c.count}/${c.required}人` : ""
+                        }）`}
                         draggable={isOwner && !!evt}
                         onDragStart={isOwner && evt ? (ev) => {
                           ev.stopPropagation();
@@ -773,6 +801,7 @@ export default function Calendar({
                         } : undefined}
                       >
                         {c.title}
+                        {c.required ? ` ${c.count}/${c.required}` : ""}
                       </div>
                     );
                   })}
@@ -2053,6 +2082,21 @@ function RequestForm({
     () => buildShiftSlots(date, reservations, templates),
     [date, reservations, templates]
   );
+  // 必要人員が設定されているコマの承認状況。承認済みが必要人員に達したコマは依頼できない。
+  const staffInfo = useMemo(() => {
+    const map: Record<string, { required?: number; count: number; full: boolean }> = {};
+    for (const s of slots) {
+      const { required, assigneeIds } = slotStaffStatus(s.date, s.title, s.start, s.end);
+      map[slotKey(s)] = {
+        required,
+        count: assigneeIds.size,
+        full: required !== undefined && assigneeIds.size >= required,
+      };
+    }
+    return map;
+  }, [slots]);
+  const openSlots = slots.filter((s) => !staffInfo[slotKey(s)]?.full);
+
   // コマごとの送信先。まとめて依頼も、コマ別に違う人へ依頼もできるようにしている。
   const [assignees, setAssignees] = useState<Record<string, string[]>>(() =>
     Object.fromEntries(slots.map((s) => [slotKey(s), initialSelectedIds]))
@@ -2063,7 +2107,13 @@ function RequestForm({
     if (initialSelectedIds.length !== 1) return [];
     const avail = getAvailabilityFor(initialSelectedIds[0], date);
     if (!avail) return [];
-    return slots.filter((s) => avail.slots.includes(s.templateId)).map(slotKey);
+    return slots
+      .filter((s) => avail.slots.includes(s.templateId))
+      .filter((s) => {
+        const info = slotStaffStatus(s.date, s.title, s.start, s.end);
+        return info.required === undefined || info.assigneeIds.size < info.required;
+      })
+      .map(slotKey);
   });
 
   function toggleSlot(key: string) {
@@ -2082,23 +2132,26 @@ function RequestForm({
   }
   // 全コマに同じ人をまとめて設定する（1人に全部お願いしたいとき用）
   function applyToAll(memberId: string) {
-    const allHave = slots.every((s) => (assignees[slotKey(s)] ?? []).includes(memberId));
+    const allHave = openSlots.every((s) => (assignees[slotKey(s)] ?? []).includes(memberId));
     setAssignees((cur) => {
       const next = { ...cur };
-      for (const s of slots) {
+      for (const s of openSlots) {
         const key = slotKey(s);
         const list = next[key] ?? [];
         next[key] = allHave ? list.filter((id) => id !== memberId) : [...new Set([...list, memberId])];
       }
       return next;
     });
-    if (!allHave) setChecked(slots.map(slotKey));
+    if (!allHave) setChecked(openSlots.map(slotKey));
   }
 
   function send() {
     if (checked.length === 0) return alert("依頼するコマを選択してください");
     const targets = slots.filter((s) => checked.includes(slotKey(s)));
     for (const s of targets) {
+      if (staffInfo[slotKey(s)]?.full) {
+        return alert(`「${s.title}」は${SLOT_FULL_MESSAGE}`);
+      }
       if ((assignees[slotKey(s)] ?? []).length === 0) {
         return alert(`「${s.title}」の送信先を選択してください`);
       }
@@ -2140,7 +2193,7 @@ function RequestForm({
             <button
               key={m.id}
               type="button"
-              className={`pick ${slots.every((s) => (assignees[slotKey(s)] ?? []).includes(m.id)) ? "on" : ""}`}
+              className={`pick ${openSlots.length > 0 && openSlots.every((s) => (assignees[slotKey(s)] ?? []).includes(m.id)) ? "on" : ""}`}
               onClick={() => applyToAll(m.id)}
             >
               {m.name}
@@ -2153,15 +2206,28 @@ function RequestForm({
       <div className="slot-list">
         {slots.map((s) => {
           const key = slotKey(s);
-          const on = checked.includes(key);
+          const info = staffInfo[key];
+          const full = !!info?.full;
+          const on = !full && checked.includes(key);
           return (
-            <div key={key} className={`slot-row ${on ? "on" : ""}`}>
+            <div key={key} className={`slot-row ${on ? "on" : ""}`} style={full ? { opacity: 0.6 } : undefined}>
               <label className="checkbox-row">
-                <input type="checkbox" checked={on} onChange={() => toggleSlot(key)} />
+                <input type="checkbox" checked={on} disabled={full} onChange={() => toggleSlot(key)} />
                 <span>
                   {s.date.slice(5).replace("-", "/")} {s.start}〜{s.end} ／ {s.title}
+                  {info?.required !== undefined && (
+                    <span className="muted small">
+                      {" "}
+                      （必要{info.required}人・承認済み{info.count}人）
+                    </span>
+                  )}
                 </span>
               </label>
+              {full && (
+                <div className="muted small" style={{ color: "var(--danger)", marginLeft: 26 }}>
+                  {SLOT_FULL_MESSAGE}
+                </div>
+              )}
               {on && (
                 <div className="search-chips slot-assignees">
                   {members.map((m) => (

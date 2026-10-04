@@ -312,6 +312,7 @@ export interface ShiftTemplate {
   startTime: string; // "HH:MM"
   endTime: string; // "HH:MM"
   sortOrder: number;
+  requiredStaff?: number; // 必要人員（承認済みがこの人数に達したら、それ以上の承認・依頼はできない）。未設定=上限なし
 }
 
 // 初期設定として用意するコマ。設定画面から追加・編集・削除できる。

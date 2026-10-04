@@ -412,6 +412,7 @@ const toDbShiftTemplate = (t: ShiftTemplate) => ({
   start_time: t.startTime,
   end_time: t.endTime,
   sort_order: t.sortOrder,
+  required_staff: t.requiredStaff ?? null,
 })
 
 const fromDbShiftTemplate = (t: any): ShiftTemplate => ({
@@ -421,6 +422,7 @@ const fromDbShiftTemplate = (t: any): ShiftTemplate => ({
   startTime: t.start_time ?? '09:00',
   endTime: t.end_time ?? '17:00',
   sortOrder: t.sort_order ?? 0,
+  requiredStaff: t.required_staff ?? undefined,
 })
 
 const toDbNotificationSchedule = (s: NotificationSchedule) => ({

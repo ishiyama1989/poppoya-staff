@@ -4,8 +4,10 @@ import {
   type User,
 } from "../types";
 import {
+  SLOT_FULL_MESSAGE,
   approveRequest,
   getUsers,
+  isRequestSlotFull,
   rejectRequest,
   requestsForUser,
 } from "../store";
@@ -59,6 +61,11 @@ export default function Requests({ me }: { me: User }) {
                 依頼者: {users.find((u) => u.id === r.fromUserId)?.name ?? "管理者"}
               </div>
               {r.note && <div className="req-card-note">{r.note}</div>}
+              {isRequestSlotFull(r) && (
+                <p className="muted small" style={{ margin: "4px 0", color: "var(--danger)" }}>
+                  ⚠️ {SLOT_FULL_MESSAGE}（これ以上承認できません）
+                </p>
+              )}
               <div className="req-card-actions">
                 <button
                   className="ghost danger"
@@ -76,8 +83,14 @@ export default function Requests({ me }: { me: User }) {
                 </button>
                 <button
                   className="primary"
+                  disabled={isRequestSlotFull(r)}
                   onClick={() => {
-                    approveRequest(r.id);
+                    const res = approveRequest(r.id);
+                    if (!res.ok) {
+                      alert(res.error);
+                      refresh();
+                      return;
+                    }
                     sendPushToUsers(
                       [r.fromUserId],
                       "依頼が承認されました",
