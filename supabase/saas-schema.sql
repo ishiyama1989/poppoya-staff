@@ -228,7 +228,8 @@ create table cafe_orders (
   done_at timestamptz,
   cafe_date text, -- 対象のLOCOMO CAFE営業日 "YYYY-MM-DD"
   deadline text, -- 発注締切日（cafe_dateから各商品のリードタイムで計算） "YYYY-MM-DD"
-  cancel_requested boolean not null default false -- カフェ管理人が取り消しを依頼中か
+  cancel_requested boolean not null default false, -- カフェ管理人が取り消しを依頼中か
+  total_amount integer -- 発注時点の概算合計（円）。単価未設定の商品は含まない
 );
 
 -- 発注できる商品のマスタ（オーナー・カフェ管理人が登録する）
@@ -240,7 +241,8 @@ create table cafe_products (
   quantity integer not null default 1, -- 1回あたりの基本数量
   unit text not null default 'g', -- 'g' | '個'
   lead_days integer not null default 1, -- 何日前までに発注が必要か
-  sort_order integer not null default 0
+  sort_order integer not null default 0,
+  unit_price numeric -- 単価（円 / 1g または 1個）。nullなら未設定
 );
 
 -- シフトのコマ（勤務パターン）。管理者が設定画面で追加・編集できる。
@@ -340,6 +342,29 @@ create policy cafe_ins on cafe_hours for insert with check (org_id = auth_org_id
 create policy cafe_upd on cafe_hours for update using (org_id = auth_org_id()) with check (org_id = auth_org_id());
 create policy cafe_del on cafe_hours for delete using (org_id = auth_org_id());
 
+-- LOCOMO CAFEの販売商品（メニュー）。日報で売れた商品を入力するときの選択肢
+create table cafe_menu_items (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  name text not null,
+  price integer not null default 0, -- 販売価格（円）
+  sort_order integer not null default 0
+);
+
+-- LOCOMO CAFEの日報（1日1件）。items は売れた商品 [{menuId,name,price,qty}]
+-- 商品名・価格は保存時点のものを持つ（あとから価格を変えても過去の売上が変わらないように）。
+-- 記入者が退会しても日報は残す（user_id は set null）。
+create table cafe_reports (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  date text not null, -- 対象の営業日 "YYYY-MM-DD"
+  user_id uuid references profiles(id) on delete set null,
+  items jsonb not null default '[]',
+  sales integer not null default 0,
+  note text default '',
+  updated_at timestamptz not null default now()
+);
+
 -- cafe_orders はオーナー・カフェ管理人のみ読み書き可。対応済みへの変更・削除はオーナーのみ。
 alter table cafe_orders enable row level security;
 create policy cafeorder_sel on cafe_orders for select using (
@@ -380,6 +405,45 @@ create policy cafeproduct_upd on cafe_products for update using (
 create policy cafeproduct_del on cafe_products for delete using (
   org_id = auth_org_id()
   and exists (select 1 from profiles me where me.id = auth.uid() and me.role in ('owner', 'cafe_manager'))
+);
+
+-- cafe_menu_items（日報の販売商品）：閲覧はオーナー・カフェ管理人、追加・編集・削除はカフェ管理人のみ。
+alter table cafe_menu_items enable row level security;
+create policy cafemenu_sel on cafe_menu_items for select using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role in ('owner', 'cafe_manager'))
+);
+create policy cafemenu_ins on cafe_menu_items for insert with check (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'cafe_manager')
+);
+create policy cafemenu_upd on cafe_menu_items for update using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'cafe_manager')
+) with check (org_id = auth_org_id());
+create policy cafemenu_del on cafe_menu_items for delete using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'cafe_manager')
+);
+
+-- cafe_reports（日報）：閲覧はオーナー・カフェ管理人のみ（メンバーには見せない）。
+-- 作成・編集・削除はカフェ管理人のみ（オーナーは閲覧専用）。
+alter table cafe_reports enable row level security;
+create policy cafereport_sel on cafe_reports for select using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role in ('owner', 'cafe_manager'))
+);
+create policy cafereport_ins on cafe_reports for insert with check (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'cafe_manager')
+);
+create policy cafereport_upd on cafe_reports for update using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'cafe_manager')
+) with check (org_id = auth_org_id());
+create policy cafereport_del on cafe_reports for delete using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'cafe_manager')
 );
 
 -- reservation_plans は組織メンバー全員が閲覧可（予約一覧にプラン名を出すため）、

@@ -2,7 +2,7 @@ import { useState } from "react";
 import "./App.css";
 import {
   Calendar as CalendarIcon, Clock, Inbox, Banknote, Settings,
-  Users, BarChart2, LogOut, ClipboardList, History, Coffee, type LucideIcon,
+  Users, BarChart2, LogOut, ClipboardList, History, Coffee, NotebookPen, type LucideIcon,
 } from "lucide-react";
 import { ROLE_LABEL, type User } from "./types";
 import {
@@ -22,6 +22,7 @@ import MyPay from "./components/MyPay";
 import WorkHistory from "./components/WorkHistory";
 import ProfileSettings from "./components/ProfileSettings";
 import CafeOrders from "./components/CafeOrders";
+import CafeReports from "./components/CafeReports";
 
 type Tab =
   | "calendar"
@@ -34,6 +35,7 @@ type Tab =
   | "payments"
   | "tasks"
   | "cafeOrders"
+  | "cafeReports"
   | "history";
 
 export default function App({
@@ -74,6 +76,7 @@ export default function App({
       icon: Coffee,
       cafeOnly: true,
     },
+    { key: "cafeReports", label: "カフェ日報", icon: NotebookPen, cafeOnly: true },
     { key: "availability", label: "稼働日設定", icon: Clock, memberOnly: true },
     {
       key: "requests",
@@ -168,6 +171,7 @@ export default function App({
         {tab === "payments" && isOwner && <Payments />}
         {tab === "tasks" && isOwner && <OwnerTasks me={user} />}
         {tab === "cafeOrders" && (isOwner || isCafeManager) && <CafeOrders me={user} />}
+        {tab === "cafeReports" && (isOwner || isCafeManager) && <CafeReports me={user} />}
       </main>
     </div>
   );

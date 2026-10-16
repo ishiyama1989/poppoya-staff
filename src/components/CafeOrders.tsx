@@ -26,6 +26,35 @@ import {
 import { addDays, todayStr } from "../lib/date";
 import { sendPushToUsers } from "../lib/push";
 
+// 単価の表示用（5.5 → "5.5"、1200 → "1,200"）
+function formatPrice(n: number): string {
+  return n.toLocaleString("ja-JP", { maximumFractionDigits: 2 });
+}
+
+// 選んだ商品の概算合計。単価が未設定の商品は含めず、その件数も返す。
+function estimateTotal(
+  selected: CafeProduct[],
+  countOf: (id: string) => number
+): { total: number; unpriced: number } {
+  let total = 0;
+  let unpriced = 0;
+  for (const p of selected) {
+    if (p.unitPrice === undefined) unpriced++;
+    else total += p.unitPrice * countOf(p.id);
+  }
+  return { total: Math.round(total), unpriced };
+}
+
+// 概算合計の表示（フォーム用）。何も選んでいなければ出さない。
+function EstimateLine({ total, unpriced }: { total: number; unpriced: number }) {
+  return (
+    <p className="muted small" style={{ margin: "8px 0 0" }}>
+      概算合計: <strong>{total.toLocaleString("ja-JP")}円</strong>
+      {unpriced > 0 && `（単価が未設定の${unpriced}商品は含みません）`}
+    </p>
+  );
+}
+
 // LOCOMO CAFEの発注（カフェ管理人 → オーナー）
 // カフェ管理人・オーナーで発注できる商品を登録しておき、
 // カフェ管理人はその中から数量を選んで発注する。
@@ -98,7 +127,9 @@ export default function CafeOrders({ me }: { me: User }) {
     const deadline = selected
       .map((p) => deadlineFor(p)!)
       .sort()[0];
-    addCafeOrder(me.id, items, note, cafeDate, deadline);
+    const est = estimateTotal(selected, countOf);
+    const hasPrice = selected.some((p) => p.unitPrice !== undefined);
+    addCafeOrder(me.id, items, note, cafeDate, deadline, hasPrice ? est.total : undefined);
     const owners = users.filter((u) => u.role === "owner").map((u) => u.id);
     sendPushToUsers(
       owners,
@@ -162,7 +193,11 @@ export default function CafeOrders({ me }: { me: User }) {
                   >
                     <span>
                       {p.name}
-                      {`（${p.supplier ? `発注先: ${p.supplier} ・` : ""}${p.leadDays}日前までに発注`}
+                      {`（${p.supplier ? `発注先: ${p.supplier} ・` : ""}${
+                        p.unitPrice !== undefined
+                          ? `単価 ${formatPrice(p.unitPrice)}円/${CAFE_PRODUCT_UNIT_LABEL[p.unit]} ・`
+                          : ""
+                      }${p.leadDays}日前までに発注`}
                       {deadline ? ` ・締切 ${deadline.replace(/-/g, "/")}` : ""}）
                     </span>
                     <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -181,6 +216,11 @@ export default function CafeOrders({ me }: { me: User }) {
               })}
             </div>
           )}
+          {(() => {
+            const selected = products.filter((p) => countOf(p.id) > 0);
+            if (selected.length === 0 || !selected.some((p) => p.unitPrice !== undefined)) return null;
+            return <EstimateLine {...estimateTotal(selected, countOf)} />;
+          })()}
           <label style={{ marginTop: 10 }}>
             メモ（任意）
             <textarea
@@ -226,6 +266,11 @@ export default function CafeOrders({ me }: { me: User }) {
                 </div>
               )}
               <div className="req-card-title">{o.items}</div>
+              {o.totalAmount !== undefined && (
+                <div className="req-card-meta">
+                  概算合計: {o.totalAmount.toLocaleString("ja-JP")}円
+                </div>
+              )}
               {o.cafeDate || o.deadline ? (
                 <div className="req-card-meta">
                   {o.cafeDate && `対象日: ${o.cafeDate.replace(/-/g, "/")}`}
@@ -402,6 +447,9 @@ function CafeProductSettings({
               </div>
               <div className="reservation-meta">
                 {p.supplier && `発注先: ${p.supplier} ／ `}
+                {p.unitPrice !== undefined
+                  ? `単価 ${formatPrice(p.unitPrice)}円/${CAFE_PRODUCT_UNIT_LABEL[p.unit]} ／ `
+                  : "単価未設定 ／ "}
                 {p.leadDays}日前までに発注
               </div>
               <div className="event-actions">
@@ -459,14 +507,24 @@ function CafeProductEditor({
   const [unit, setUnit] = useState<CafeProductUnit>(value?.unit ?? "g");
   // 手入力しやすいよう文字列のまま保持し、保存時にだけ数値へ変換する
   const [leadDays, setLeadDays] = useState(String(value?.leadDays ?? 1));
+  const [unitPrice, setUnitPrice] = useState(
+    value?.unitPrice !== undefined ? String(value.unitPrice) : ""
+  );
 
   function save() {
     if (!name.trim()) return alert("商品名を入力してください");
     const d = Math.max(0, Number(leadDays) || 0);
+    // 空欄=単価未設定。入力があるときは0以上の数字だけ受け付ける
+    let price: number | undefined;
+    if (unitPrice.trim() !== "") {
+      price = Number(unitPrice);
+      if (!Number.isFinite(price) || price < 0)
+        return alert("単価は0以上の数字で入力してください（空欄なら未設定）");
+    }
     if (value) {
-      updateCafeProduct(value.id, { name, supplier, unit, leadDays: d });
+      updateCafeProduct(value.id, { name, supplier, unit, leadDays: d, unitPrice: price });
     } else {
-      addCafeProduct({ name, supplier, unit, leadDays: d });
+      addCafeProduct({ name, supplier, unit, leadDays: d, unitPrice: price });
     }
     onSave();
   }
@@ -511,6 +569,18 @@ function CafeProductEditor({
           />
         </label>
       </div>
+      <label>
+        単価（円 / {CAFE_PRODUCT_UNIT_LABEL[unit]}）
+        <input
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          value={unitPrice}
+          onChange={(e) => setUnitPrice(e.target.value)}
+          placeholder={`空欄＝未設定（1${CAFE_PRODUCT_UNIT_LABEL[unit]}あたりの金額）`}
+        />
+      </label>
       <div className="form-actions">
         <button className="ghost" onClick={onCancel}>
           キャンセル
@@ -556,7 +626,9 @@ export function CafeQuickOrderForm({
       .map((p) => `${p.name} ${countOf(p.id)}${CAFE_PRODUCT_UNIT_LABEL[p.unit]}`)
       .join("、");
     const deadline = selected.map((p) => deadlineFor(p)).sort()[0];
-    addCafeOrder(me.id, items, note, cafeDate, deadline);
+    const est = estimateTotal(selected, countOf);
+    const hasPrice = selected.some((p) => p.unitPrice !== undefined);
+    addCafeOrder(me.id, items, note, cafeDate, deadline, hasPrice ? est.total : undefined);
     const owners = getUsers().filter((u) => u.role === "owner").map((u) => u.id);
     sendPushToUsers(
       owners,
@@ -588,7 +660,11 @@ export function CafeQuickOrderForm({
           >
             <span>
               {p.name}
-              {`（${p.supplier ? `発注先: ${p.supplier} ・` : ""}締切 ${deadlineFor(p).replace(/-/g, "/")}）`}
+              {`（${p.supplier ? `発注先: ${p.supplier} ・` : ""}${
+                p.unitPrice !== undefined
+                  ? `単価 ${formatPrice(p.unitPrice)}円/${CAFE_PRODUCT_UNIT_LABEL[p.unit]} ・`
+                  : ""
+              }締切 ${deadlineFor(p).replace(/-/g, "/")}）`}
             </span>
             <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <input
@@ -604,6 +680,11 @@ export function CafeQuickOrderForm({
           </div>
         ))}
       </div>
+      {(() => {
+        const selected = products.filter((p) => countOf(p.id) > 0);
+        if (selected.length === 0 || !selected.some((p) => p.unitPrice !== undefined)) return null;
+        return <EstimateLine {...estimateTotal(selected, countOf)} />;
+      })()}
       <label style={{ marginTop: 10 }}>
         メモ（任意）
         <textarea

@@ -266,6 +266,7 @@ export interface CafeOrder {
   cafeDate?: string; // 対象のLOCOMO CAFE営業日 "YYYY-MM-DD"
   deadline?: string; // 発注締切日（cafeDateから各商品の発注リードタイムで計算） "YYYY-MM-DD"
   cancelRequested?: boolean; // カフェ管理人が取り消しを依頼した（オーナーの承認待ち）
+  totalAmount?: number; // 発注時点の概算合計（円）。商品の単価×数量の合計（単価未設定の商品は含まない）
 }
 
 // 発注できる商品の数量単位
@@ -285,6 +286,36 @@ export interface CafeProduct {
   unit: CafeProductUnit; // 発注時の数量単位（g / 個）
   leadDays: number; // 何日前までに発注が必要か
   sortOrder: number;
+  unitPrice?: number; // 単価（円 / 1g または 1個）。未設定なら金額は計算しない
+}
+
+// LOCOMO CAFEで販売している商品（メニュー）。日報で「売れた商品」を入力するときの選択肢になる。
+// 仕入れ用の CafeProduct（発注商品）とは別のもの。
+export interface CafeMenuItem {
+  id: string;
+  name: string; // 商品名（例: カフェラテ）
+  price: number; // 販売価格（円）
+  sortOrder: number;
+}
+
+// 日報に記録する、売れた商品1行分。商品名・価格はその日の時点のものを保存する
+// （あとで価格を変えたり商品を削除しても、過去の売上が変わらないように）。
+export interface CafeReportItem {
+  menuId: string;
+  name: string;
+  price: number;
+  qty: number;
+}
+
+// LOCOMO CAFEの日報（1日1件。オーナー・カフェ管理人だけが見られる）
+export interface CafeReport {
+  id: string;
+  date: string; // 対象の営業日 "YYYY-MM-DD"
+  userId: string; // 記入した（最後に更新した）人
+  items: CafeReportItem[]; // 売れた商品
+  sales: number; // その日の売上（円）= items の 価格×数量 の合計
+  note: string; // 1日の様子
+  updatedAt: string; // ISO日時
 }
 
 // シフトのコマ（勤務パターン）。管理者が設定画面で追加・編集できる。

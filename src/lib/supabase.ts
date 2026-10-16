@@ -4,8 +4,10 @@ import type {
   AttendanceAlert,
   Availability,
   CafeHours,
+  CafeMenuItem,
   CafeOrder,
   CafeProduct,
+  CafeReport,
   ChecklistItem,
   CommentTemplate,
   EventApproval,
@@ -372,6 +374,7 @@ const toDbCafeOrder = (o: CafeOrder) => ({
   cafe_date: o.cafeDate ?? null,
   deadline: o.deadline ?? null,
   cancel_requested: o.cancelRequested ?? false,
+  total_amount: o.totalAmount ?? null,
 })
 
 const fromDbCafeOrder = (o: any): CafeOrder => ({
@@ -385,6 +388,7 @@ const fromDbCafeOrder = (o: any): CafeOrder => ({
   cancelRequested: o.cancel_requested ?? false,
   cafeDate: o.cafe_date ?? undefined,
   deadline: o.deadline ?? undefined,
+  totalAmount: o.total_amount ?? undefined,
 })
 
 const toDbCafeProduct = (p: CafeProduct) => ({
@@ -394,6 +398,7 @@ const toDbCafeProduct = (p: CafeProduct) => ({
   unit: p.unit,
   lead_days: p.leadDays,
   sort_order: p.sortOrder,
+  unit_price: p.unitPrice ?? null,
 })
 
 const fromDbCafeProduct = (p: any): CafeProduct => ({
@@ -403,6 +408,41 @@ const fromDbCafeProduct = (p: any): CafeProduct => ({
   unit: p.unit === '個' ? '個' : 'g',
   leadDays: p.lead_days ?? 1,
   sortOrder: p.sort_order ?? 0,
+  unitPrice: p.unit_price == null ? undefined : Number(p.unit_price),
+})
+
+const toDbCafeMenuItem = (m: CafeMenuItem) => ({
+  id: m.id,
+  name: m.name,
+  price: m.price,
+  sort_order: m.sortOrder,
+})
+
+const fromDbCafeMenuItem = (m: any): CafeMenuItem => ({
+  id: m.id,
+  name: m.name ?? '',
+  price: Number(m.price ?? 0),
+  sortOrder: m.sort_order ?? 0,
+})
+
+const toDbCafeReport = (r: CafeReport) => ({
+  id: r.id,
+  date: r.date,
+  user_id: r.userId || null,
+  items: r.items,
+  sales: r.sales,
+  note: r.note,
+  updated_at: r.updatedAt,
+})
+
+const fromDbCafeReport = (r: any): CafeReport => ({
+  id: r.id,
+  date: r.date,
+  userId: r.user_id ?? '',
+  items: Array.isArray(r.items) ? r.items : [],
+  sales: r.sales ?? 0,
+  note: r.note ?? '',
+  updatedAt: r.updated_at ?? new Date().toISOString(),
 })
 
 const toDbShiftTemplate = (t: ShiftTemplate) => ({
@@ -601,6 +641,14 @@ export function syncShiftTemplates(list: ShiftTemplate[]): void {
   upsertRows('shift_templates', list, toDbShiftTemplate, 'id').catch(() => {})
 }
 
+export function syncCafeMenuItems(list: CafeMenuItem[]): void {
+  upsertRows('cafe_menu_items', list, toDbCafeMenuItem, 'id').catch(() => {})
+}
+
+export function syncCafeReports(list: CafeReport[]): void {
+  upsertRows('cafe_reports', list, toDbCafeReport, 'id').catch(() => {})
+}
+
 export function syncNotificationSchedules(list: NotificationSchedule[]): void {
   upsertRows('notification_schedules', list, toDbNotificationSchedule, 'id').catch(() => {})
 }
@@ -612,7 +660,7 @@ export async function loadOrgData(): Promise<void> {
     templates, approvals, reservations,
     timeClocks, checklistItems, handoverNotes, attendanceAlerts,
     cafeHours, shiftTemplates, notificationSchedules, cafeOrders, cafeProducts,
-    reservationPlans,
+    reservationPlans, cafeReports, cafeMenuItems,
   ] = await Promise.all([
     supabase.from('profiles').select('*'),
     supabase.from('schedule_events').select('*'),
@@ -633,6 +681,8 @@ export async function loadOrgData(): Promise<void> {
     supabase.from('cafe_orders').select('*'),
     supabase.from('cafe_products').select('*'),
     supabase.from('reservation_plans').select('*'),
+    supabase.from('cafe_reports').select('*'),
+    supabase.from('cafe_menu_items').select('*'),
   ])
   // 読み込みに失敗したテーブルは上書きせず前回の内容を残し、原因を記録する。
   // （黙って空にすると、画面上はデータが消えたようにしか見えないため）
@@ -666,6 +716,8 @@ export async function loadOrgData(): Promise<void> {
   put('sns_cafe_orders', cafeOrders, fromDbCafeOrder)
   put('sns_cafe_products', cafeProducts, fromDbCafeProduct)
   put('sns_reservation_plans', reservationPlans, fromDbReservationPlan)
+  put('sns_cafe_reports', cafeReports, fromDbCafeReport)
+  put('sns_cafe_menu_items', cafeMenuItems, fromDbCafeMenuItem)
 }
 
 // ---- Hydration: Supabase → localStorage on app start（旧・単一テナント用。SaaS版では未使用） ----

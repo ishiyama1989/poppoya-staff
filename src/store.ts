@@ -3,8 +3,11 @@ import type {
   AttendanceAlert,
   Availability,
   CafeHours,
+  CafeMenuItem,
   CafeOrder,
   CafeProduct,
+  CafeReport,
+  CafeReportItem,
   ChecklistItem,
   CommentTemplate,
   HandoverNote,
@@ -50,6 +53,8 @@ import {
   syncCafeHours,
   syncCafeOrders,
   syncCafeProducts,
+  syncCafeMenuItems,
+  syncCafeReports,
   syncShiftTemplates,
   syncNotificationSchedules,
   deleteRemote,
@@ -70,6 +75,8 @@ const KEYS = {
   cafeHours: "sns_cafe_hours",
   cafeOrders: "sns_cafe_orders",
   cafeProducts: "sns_cafe_products",
+  cafeReports: "sns_cafe_reports",
+  cafeMenuItems: "sns_cafe_menu_items",
   shiftTemplates: "sns_shift_templates",
   timeClocks: "sns_time_clocks",
   checklistItems: "sns_checklist_items",
@@ -1008,7 +1015,8 @@ export function addCafeOrder(
   items: string,
   note: string,
   cafeDate?: string,
-  deadline?: string
+  deadline?: string,
+  totalAmount?: number
 ): CafeOrder {
   const order: CafeOrder = {
     id: `cafeorder:${uid()}`,
@@ -1019,6 +1027,7 @@ export function addCafeOrder(
     createdAt: new Date().toISOString(),
     cafeDate,
     deadline,
+    totalAmount,
   };
   saveCafeOrders([...getCafeOrders(), order]);
   return order;
@@ -1121,6 +1130,7 @@ export function addCafeProduct(input: {
   supplier: string;
   unit: CafeProduct["unit"];
   leadDays: number;
+  unitPrice?: number;
 }): CafeProduct {
   const list = getCafeProducts();
   const max = list.reduce((m, p) => Math.max(m, p.sortOrder), 0);
@@ -1131,6 +1141,7 @@ export function addCafeProduct(input: {
     unit: input.unit,
     leadDays: input.leadDays,
     sortOrder: max + 1,
+    unitPrice: input.unitPrice,
   };
   saveCafeProducts([...list, product]);
   return product;
@@ -1143,6 +1154,7 @@ export function updateCafeProduct(
     supplier: string;
     unit: CafeProduct["unit"];
     leadDays: number;
+    unitPrice?: number; // undefined なら単価を未設定に戻す
   }
 ): void {
   saveCafeProducts(
@@ -1154,6 +1166,7 @@ export function updateCafeProduct(
             supplier: input.supplier.trim(),
             unit: input.unit,
             leadDays: input.leadDays,
+            unitPrice: input.unitPrice,
           }
         : p
     )
@@ -1163,6 +1176,87 @@ export function updateCafeProduct(
 export function deleteCafeProduct(id: string): void {
   write(KEYS.cafeProducts, getCafeProducts().filter((p) => p.id !== id));
   deleteRemote("cafe_products", { id });
+}
+
+// ---- LOCOMO CAFEの日報（1日1件） ----
+export function getCafeReports(): CafeReport[] {
+  return read<CafeReport[]>(KEYS.cafeReports, []).sort((a, b) =>
+    a.date < b.date ? 1 : a.date > b.date ? -1 : 0
+  );
+}
+
+export function cafeReportOn(date: string): CafeReport | null {
+  return getCafeReports().find((r) => r.date === date) ?? null;
+}
+
+// 同じ日の日報があれば上書き（IDは引き継ぐ）、なければ新規作成する。
+// 売上は売れた商品の「価格×数量」の合計で自動計算する（数量0の行は保存しない）。
+// 戻り値は、新規作成だったかどうか（オーナーへの通知を新規のときだけにするため）。
+export function saveCafeReport(input: {
+  userId: string;
+  date: string;
+  items: CafeReportItem[];
+  note: string;
+}): { isNew: boolean } {
+  const list = getCafeReports();
+  const existing = list.find((r) => r.date === input.date);
+  const items = input.items.filter((i) => i.qty > 0);
+  const report: CafeReport = {
+    id: existing?.id ?? `cafereport:${uid()}`,
+    date: input.date,
+    userId: input.userId,
+    items,
+    sales: items.reduce((sum, i) => sum + i.price * i.qty, 0),
+    note: input.note.trim(),
+    updatedAt: new Date().toISOString(),
+  };
+  const next = existing ? list.map((r) => (r.id === existing.id ? report : r)) : [...list, report];
+  write(KEYS.cafeReports, next);
+  syncCafeReports(next);
+  return { isNew: !existing };
+}
+
+export function deleteCafeReport(id: string): void {
+  write(KEYS.cafeReports, getCafeReports().filter((r) => r.id !== id));
+  deleteRemote("cafe_reports", { id });
+}
+
+// ---- LOCOMO CAFEの販売商品（メニュー）。日報で売れた商品を入力するときの選択肢 ----
+export function getCafeMenuItems(): CafeMenuItem[] {
+  return read<CafeMenuItem[]>(KEYS.cafeMenuItems, []).sort(
+    (a, b) => a.sortOrder - b.sortOrder
+  );
+}
+
+function saveCafeMenuItems(list: CafeMenuItem[]): void {
+  write(KEYS.cafeMenuItems, list);
+  syncCafeMenuItems(list);
+}
+
+export function addCafeMenuItem(input: { name: string; price: number }): CafeMenuItem {
+  const list = getCafeMenuItems();
+  const max = list.reduce((m, i) => Math.max(m, i.sortOrder), 0);
+  const item: CafeMenuItem = {
+    id: `cafemenu:${uid()}`,
+    name: input.name.trim(),
+    price: input.price,
+    sortOrder: max + 1,
+  };
+  saveCafeMenuItems([...list, item]);
+  return item;
+}
+
+export function updateCafeMenuItem(id: string, input: { name: string; price: number }): void {
+  saveCafeMenuItems(
+    getCafeMenuItems().map((i) =>
+      i.id === id ? { ...i, name: input.name.trim(), price: input.price } : i
+    )
+  );
+}
+
+export function deleteCafeMenuItem(id: string): void {
+  write(KEYS.cafeMenuItems, getCafeMenuItems().filter((i) => i.id !== id));
+  deleteRemote("cafe_menu_items", { id });
 }
 
 // ---- シフトのコマ（勤務パターン）。管理者が設定画面で編集する ----
