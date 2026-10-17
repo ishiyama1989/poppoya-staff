@@ -363,6 +363,9 @@ create table cafe_reports (
   items jsonb not null default '[]',
   sales integer not null default 0,
   note text default '',
+  open_time text, -- その日のカフェ営業時間（カレンダーの登録を保存時に写す）
+  close_time text,
+  hours_note text, -- 営業日のメモ（同上）
   updated_at timestamptz not null default now()
 );
 

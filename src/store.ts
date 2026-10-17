@@ -1208,6 +1208,8 @@ export function saveCafeReport(input: {
   if (!existing && !cafeHoursOn(input.date))
     return { ok: false, error: "この日はLOCOMO CAFEの営業が登録されていないため、日報を作成できません" };
   const items = input.items.filter((i) => i.qty > 0);
+  // その日の営業時間・メモをカレンダーの登録から写す（登録がなければ、すでにある日報の分を残す）
+  const hours = cafeHoursOn(input.date);
   const report: CafeReport = {
     id: existing?.id ?? `cafereport:${uid()}`,
     date: input.date,
@@ -1215,6 +1217,9 @@ export function saveCafeReport(input: {
     items,
     sales: items.reduce((sum, i) => sum + i.price * i.qty, 0),
     note: input.note.trim(),
+    openTime: hours?.openTime ?? existing?.openTime,
+    closeTime: hours?.closeTime ?? existing?.closeTime,
+    hoursNote: hours ? hours.note || undefined : existing?.hoursNote,
     updatedAt: new Date().toISOString(),
   };
   const next = existing ? list.map((r) => (r.id === existing.id ? report : r)) : [...list, report];

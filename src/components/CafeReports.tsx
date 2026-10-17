@@ -4,6 +4,7 @@ import {
   addCafeMenuItem,
   cafeReportOn,
   deleteCafeMenuItem,
+  cafeHoursOn,
   deleteCafeReport,
   getCafeHours,
   getCafeMenuItems,
@@ -17,6 +18,33 @@ import { sendPushToUsers } from "../lib/push";
 import QtyTile, { applyQty, type QtyUpdate } from "./QtyTile";
 
 const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
+
+// 営業時間・メモの表示用
+function HoursInfo({
+  openTime,
+  closeTime,
+  note,
+  compact,
+}: {
+  openTime?: string;
+  closeTime?: string;
+  note?: string;
+  compact?: boolean;
+}) {
+  if (!openTime && !closeTime && !note) return null;
+  return (
+    <div className={compact ? "req-card-meta" : "muted small"} style={compact ? undefined : { margin: "6px 0" }}>
+      {(openTime || closeTime) && (
+        <span>🕘 営業時間 {openTime}〜{closeTime}</span>
+      )}
+      {note && (
+        <span>
+          {(openTime || closeTime) && "　"}📝 営業メモ: {note}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function dateLabel(date: string): string {
   const d = new Date(`${date}T00:00:00`);
@@ -226,6 +254,15 @@ export default function CafeReports({ me }: { me: User }) {
             ))}
           </select>
         </label>
+        {/* その日のカレンダー登録（営業時間・メモ）。日報に一緒に保存される */}
+        {(() => {
+          const live = cafeHoursOn(date);
+          return live ? (
+            <HoursInfo openTime={live.openTime} closeTime={live.closeTime} note={live.note} />
+          ) : (
+            <HoursInfo openTime={saved?.openTime} closeTime={saved?.closeTime} note={saved?.hoursNote} />
+          );
+        })()}
         {saved && (
           <p className="muted small" style={{ margin: "0 0 6px" }}>
             この日の日報はすでにあります。保存すると上書きされます。
@@ -294,6 +331,18 @@ export default function CafeReports({ me }: { me: User }) {
                 <span className="req-date">{dateLabel(r.date)}</span>
                 <span className="req-status approved">売上 {yen(r.sales)}</span>
               </div>
+              {(() => {
+                // この機能の追加前に保存した日報は、カレンダーの登録を代わりに表示する
+                const h = r.openTime || r.closeTime || r.hoursNote ? null : cafeHoursOn(r.date);
+                return (
+                  <HoursInfo
+                    openTime={h ? h.openTime : r.openTime}
+                    closeTime={h ? h.closeTime : r.closeTime}
+                    note={h ? h.note : r.hoursNote}
+                    compact
+                  />
+                );
+              })()}
               {r.items.length > 0 && (
                 <div className="req-card-meta">
                   {r.items.map((i) => `${i.name} × ${i.qty}`).join("、")}

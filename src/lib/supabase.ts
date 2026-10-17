@@ -434,6 +434,9 @@ const toDbCafeReport = (r: CafeReport) => ({
   items: r.items,
   sales: r.sales,
   note: r.note,
+  open_time: r.openTime ?? null,
+  close_time: r.closeTime ?? null,
+  hours_note: r.hoursNote ?? null,
   updated_at: r.updatedAt,
 })
 
@@ -444,6 +447,9 @@ const fromDbCafeReport = (r: any): CafeReport => ({
   items: Array.isArray(r.items) ? r.items : [],
   sales: r.sales ?? 0,
   note: r.note ?? '',
+  openTime: r.open_time ?? undefined,
+  closeTime: r.close_time ?? undefined,
+  hoursNote: r.hours_note || undefined,
   updatedAt: r.updated_at ?? new Date().toISOString(),
 })
 

@@ -316,6 +316,10 @@ export interface CafeReport {
   items: CafeReportItem[]; // 売れた商品
   sales: number; // その日の売上（円）= items の 価格×数量 の合計
   note: string; // 1日の様子
+  // その日のカレンダー登録（LOCOMO CAFEの営業時間・メモ）を保存時に写しておく
+  openTime?: string; // "HH:MM"
+  closeTime?: string; // "HH:MM"
+  hoursNote?: string; // 営業日のメモ
   updatedAt: string; // ISO日時
 }
 
