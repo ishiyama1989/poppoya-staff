@@ -5,6 +5,7 @@ import {
   cafeReportOn,
   deleteCafeMenuItem,
   deleteCafeReport,
+  getCafeHours,
   getCafeMenuItems,
   getCafeReports,
   getUsers,
@@ -38,12 +39,29 @@ export default function CafeReports({ me }: { me: User }) {
   const users = getUsers();
   const menu = getCafeMenuItems();
 
-  const [date, setDate] = useState(todayStr());
-  // 数量は入力途中の文字列のまま持ち、保存・集計のときだけ数値にする
-  const [qtys, setQtys] = useState<Record<string, string>>(
-    () => qtysOf(cafeReportOn(todayStr()))
+  // 日報を書けるのは、カフェの営業が登録されている日（今日まで）。
+  // すでに日報がある日は、営業登録がなくても編集できるよう選択肢に含める。
+  const today = todayStr();
+  const reportDates = new Set(getCafeReports().map((r) => r.date));
+  const selectableDates = [
+    ...new Set([
+      ...getCafeHours().map((c) => c.date).filter((d) => d <= today),
+      ...reportDates,
+    ]),
+  ].sort((a, b) => (a < b ? 1 : -1));
+
+  const [date, setDate] = useState(() =>
+    selectableDates.includes(today) ? today : (selectableDates[0] ?? "")
   );
-  const [note, setNote] = useState(() => cafeReportOn(todayStr())?.note ?? "");
+  // 数量は入力途中の文字列のまま持ち、保存・集計のときだけ数値にする
+  const [qtys, setQtys] = useState<Record<string, string>>(() => {
+    const d = selectableDates.includes(today) ? today : (selectableDates[0] ?? "");
+    return qtysOf(d ? cafeReportOn(d) : null);
+  });
+  const [note, setNote] = useState(() => {
+    const d = selectableDates.includes(today) ? today : (selectableDates[0] ?? "");
+    return d ? (cafeReportOn(d)?.note ?? "") : "";
+  });
   const [message, setMessage] = useState("");
   const [month, setMonth] = useState(todayStr().slice(0, 7));
 
@@ -68,7 +86,7 @@ export default function CafeReports({ me }: { me: User }) {
 
   // 入力欄の行：登録中の販売商品 ＋ すでに日報にあるが商品が削除された行。
   // 日報にある商品の価格は、保存時点の価格を使う（あとから価格を変えても過去の売上が動かない）。
-  const saved = cafeReportOn(date);
+  const saved = date ? cafeReportOn(date) : null;
   const savedById = new Map((saved?.items ?? []).map((i) => [i.menuId, i]));
   const rows = [
     ...menu.map((m) => ({
@@ -83,6 +101,15 @@ export default function CafeReports({ me }: { me: User }) {
   ];
   const total = rows.reduce((sum, r) => sum + r.price * qtyOf(r.id), 0);
 
+  // ＋／−ボタンで数量を増減する（0未満にはならない）
+  function bump(id: string, delta: number) {
+    // 連打しても取りこぼさないよう、画面の値ではなく直前の入力値から計算する
+    setQtys((cur) => ({
+      ...cur,
+      [id]: String(Math.max(0, Math.floor(Number(cur[id]) || 0) + delta)),
+    }));
+  }
+
   function save() {
     if (!date) return alert("日付を選んでください");
     const items = rows
@@ -90,7 +117,9 @@ export default function CafeReports({ me }: { me: User }) {
       .map((r) => ({ menuId: r.id, name: r.name, price: r.price, qty: qtyOf(r.id) }));
     if (items.length === 0 && !note.trim())
       return alert("売れた商品か、1日の様子を入力してください");
-    const { isNew } = saveCafeReport({ userId: me.id, date, items, note });
+    const res = saveCafeReport({ userId: me.id, date, items, note });
+    if (!res.ok) return alert(res.error);
+    const { isNew } = res;
     if (isNew) {
       const owners = users.filter((u) => u.role === "owner").map((u) => u.id);
       const sales = items.reduce((s, i) => s + i.price * i.qty, 0);
@@ -184,16 +213,24 @@ export default function CafeReports({ me }: { me: User }) {
       </div>
 
       {/* 日報の入力（カフェ管理人のみ） */}
-      {canEdit && (
+      {canEdit && selectableDates.length === 0 && (
+        <p className="muted" style={{ marginBottom: 20 }}>
+          日報を書けるのは、LOCOMO CAFEの営業が登録されている日だけです。
+          カレンダーで営業時間を登録すると、その日から日報を書けます。
+        </p>
+      )}
+      {canEdit && selectableDates.length > 0 && (
       <div className="event-form" style={{ marginBottom: 20 }}>
         <label>
-          日付
-          <input
-            type="date"
-            value={date}
-            max={todayStr()}
-            onChange={(e) => e.target.value && loadDate(e.target.value)}
-          />
+          日付（カフェの営業日）
+          <select value={date} onChange={(e) => loadDate(e.target.value)}>
+            {selectableDates.map((d) => (
+              <option key={d} value={d}>
+                {dateLabel(d)}
+                {reportDates.has(d) ? "　記入済み" : ""}
+              </option>
+            ))}
+          </select>
         </label>
         {saved && (
           <p className="muted small" style={{ margin: "0 0 6px" }}>
@@ -201,35 +238,36 @@ export default function CafeReports({ me }: { me: User }) {
           </p>
         )}
 
-        <label style={{ marginTop: 6 }}>売れた商品（数を入力）</label>
+        <label style={{ marginTop: 6 }}>売れた商品（＋／−で数を入力）</label>
         {rows.length === 0 ? (
           <p className="muted small">
             まだ販売商品が登録されていません。下の「販売商品の登録」から追加してください。
           </p>
         ) : (
-          <div className="slot-list">
+          <div className="sold-grid">
             {rows.map((r) => (
-              <div
-                key={r.id}
-                className="slot-row"
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
-              >
-                <span>
+              <div key={r.id} className={`sold-tile ${qtyOf(r.id) > 0 ? "on" : ""}`}>
+                <div className="sold-name">
                   {r.name}
-                  <span className="muted small"> （{yen(r.price)}）</span>
                   {r.removed && <span className="tag muted"> 登録解除済み</span>}
-                </span>
-                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                </div>
+                <div className="sold-price">{yen(r.price)}</div>
+                <div className="qty-stepper">
+                  <button type="button" onClick={() => bump(r.id, -1)} aria-label={`${r.name}を1つ減らす`}>
+                    −
+                  </button>
                   <input
                     type="number"
                     min={0}
                     inputMode="numeric"
+                    placeholder="0"
                     value={qtys[r.id] ?? ""}
                     onChange={(e) => setQtys((cur) => ({ ...cur, [r.id]: e.target.value }))}
-                    style={{ width: 70 }}
                   />
-                  個
-                </span>
+                  <button type="button" onClick={() => bump(r.id, 1)} aria-label={`${r.name}を1つ増やす`}>
+                    ＋
+                  </button>
+                </div>
               </div>
             ))}
           </div>

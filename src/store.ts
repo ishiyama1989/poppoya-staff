@@ -1191,15 +1191,18 @@ export function cafeReportOn(date: string): CafeReport | null {
 
 // 同じ日の日報があれば上書き（IDは引き継ぐ）、なければ新規作成する。
 // 売上は売れた商品の「価格×数量」の合計で自動計算する（数量0の行は保存しない）。
-// 戻り値は、新規作成だったかどうか（オーナーへの通知を新規のときだけにするため）。
+// 新規作成できるのは、LOCOMO CAFEの営業時間が登録されている日だけ（すでにある日報の編集は可）。
+// 戻り値の isNew は、新規作成だったかどうか（オーナーへの通知を新規のときだけにするため）。
 export function saveCafeReport(input: {
   userId: string;
   date: string;
   items: CafeReportItem[];
   note: string;
-}): { isNew: boolean } {
+}): { ok: true; isNew: boolean } | { ok: false; error: string } {
   const list = getCafeReports();
   const existing = list.find((r) => r.date === input.date);
+  if (!existing && !cafeHoursOn(input.date))
+    return { ok: false, error: "この日はLOCOMO CAFEの営業が登録されていないため、日報を作成できません" };
   const items = input.items.filter((i) => i.qty > 0);
   const report: CafeReport = {
     id: existing?.id ?? `cafereport:${uid()}`,
@@ -1213,7 +1216,7 @@ export function saveCafeReport(input: {
   const next = existing ? list.map((r) => (r.id === existing.id ? report : r)) : [...list, report];
   write(KEYS.cafeReports, next);
   syncCafeReports(next);
-  return { isNew: !existing };
+  return { ok: true, isNew: !existing };
 }
 
 export function deleteCafeReport(id: string): void {
