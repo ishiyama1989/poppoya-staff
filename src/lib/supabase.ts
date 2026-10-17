@@ -399,6 +399,7 @@ const toDbCafeProduct = (p: CafeProduct) => ({
   lead_days: p.leadDays,
   sort_order: p.sortOrder,
   unit_price: p.unitPrice ?? null,
+  price_qty: p.priceQty ?? null,
 })
 
 const fromDbCafeProduct = (p: any): CafeProduct => ({
@@ -409,6 +410,7 @@ const fromDbCafeProduct = (p: any): CafeProduct => ({
   leadDays: p.lead_days ?? 1,
   sortOrder: p.sort_order ?? 0,
   unitPrice: p.unit_price == null ? undefined : Number(p.unit_price),
+  priceQty: p.price_qty == null ? undefined : Number(p.price_qty),
 })
 
 const toDbCafeMenuItem = (m: CafeMenuItem) => ({

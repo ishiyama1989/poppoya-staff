@@ -286,7 +286,8 @@ export interface CafeProduct {
   unit: CafeProductUnit; // 発注時の数量単位（g / 個）
   leadDays: number; // 何日前までに発注が必要か
   sortOrder: number;
-  unitPrice?: number; // 単価（円 / 1g または 1個）。未設定なら金額は計算しない
+  unitPrice?: number; // 単価。priceQty ぶんの金額（円）。未設定なら金額は計算しない
+  priceQty?: number; // 単価の基準数量。例: 100g 800円 なら 100（未設定=1）
 }
 
 // LOCOMO CAFEで販売している商品（メニュー）。日報で「売れた商品」を入力するときの選択肢になる。

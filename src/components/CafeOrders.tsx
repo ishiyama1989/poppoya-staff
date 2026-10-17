@@ -31,6 +31,12 @@ function formatPrice(n: number): string {
   return n.toLocaleString("ja-JP", { maximumFractionDigits: 2 });
 }
 
+// 単価の表示（例: "800円/100g"、"5.5円/g"、"200円/個"）
+function priceLabel(p: CafeProduct): string {
+  const qty = p.priceQty && p.priceQty > 0 ? p.priceQty : 1;
+  return `${formatPrice(p.unitPrice ?? 0)}円/${qty === 1 ? "" : formatPrice(qty)}${CAFE_PRODUCT_UNIT_LABEL[p.unit]}`;
+}
+
 // 選んだ商品の概算合計。単価が未設定の商品は含めず、その件数も返す。
 function estimateTotal(
   selected: CafeProduct[],
@@ -40,7 +46,7 @@ function estimateTotal(
   let unpriced = 0;
   for (const p of selected) {
     if (p.unitPrice === undefined) unpriced++;
-    else total += p.unitPrice * countOf(p.id);
+    else total += (p.unitPrice / (p.priceQty && p.priceQty > 0 ? p.priceQty : 1)) * countOf(p.id);
   }
   return { total: Math.round(total), unpriced };
 }
@@ -195,7 +201,7 @@ export default function CafeOrders({ me }: { me: User }) {
                       {p.name}
                       {`（${p.supplier ? `発注先: ${p.supplier} ・` : ""}${
                         p.unitPrice !== undefined
-                          ? `単価 ${formatPrice(p.unitPrice)}円/${CAFE_PRODUCT_UNIT_LABEL[p.unit]} ・`
+                          ? `単価 ${priceLabel(p)} ・`
                           : ""
                       }${p.leadDays}日前までに発注`}
                       {deadline ? ` ・締切 ${deadline.replace(/-/g, "/")}` : ""}）
@@ -448,7 +454,7 @@ function CafeProductSettings({
               <div className="reservation-meta">
                 {p.supplier && `発注先: ${p.supplier} ／ `}
                 {p.unitPrice !== undefined
-                  ? `単価 ${formatPrice(p.unitPrice)}円/${CAFE_PRODUCT_UNIT_LABEL[p.unit]} ／ `
+                  ? `単価 ${priceLabel(p)} ／ `
                   : "単価未設定 ／ "}
                 {p.leadDays}日前までに発注
               </div>
@@ -510,21 +516,31 @@ function CafeProductEditor({
   const [unitPrice, setUnitPrice] = useState(
     value?.unitPrice !== undefined ? String(value.unitPrice) : ""
   );
+  // 単価の基準数量（例: 100g 800円 の「100」）。新規のgは100から始める（1gあたりは入れづらいため）
+  const [priceQty, setPriceQty] = useState(
+    value?.priceQty !== undefined ? String(value.priceQty) : value ? "1" : "100"
+  );
+  const [priceQtyTouched, setPriceQtyTouched] = useState(false);
 
   function save() {
     if (!name.trim()) return alert("商品名を入力してください");
     const d = Math.max(0, Number(leadDays) || 0);
     // 空欄=単価未設定。入力があるときは0以上の数字だけ受け付ける
     let price: number | undefined;
+    let qty: number | undefined;
     if (unitPrice.trim() !== "") {
       price = Number(unitPrice);
       if (!Number.isFinite(price) || price < 0)
-        return alert("単価は0以上の数字で入力してください（空欄なら未設定）");
+        return alert("単価の金額は0以上の数字で入力してください（空欄なら未設定）");
+      qty = Number(priceQty);
+      if (!Number.isFinite(qty) || qty <= 0)
+        return alert("単価の基準数量は0より大きい数字で入力してください（例: 100g なら 100）");
     }
+    const input = { name, supplier, unit, leadDays: d, unitPrice: price, priceQty: qty };
     if (value) {
-      updateCafeProduct(value.id, { name, supplier, unit, leadDays: d, unitPrice: price });
+      updateCafeProduct(value.id, input);
     } else {
-      addCafeProduct({ name, supplier, unit, leadDays: d, unitPrice: price });
+      addCafeProduct(input);
     }
     onSave();
   }
@@ -550,7 +566,14 @@ function CafeProductEditor({
       <div className="row">
         <label>
           単位
-          <select value={unit} onChange={(e) => setUnit(e.target.value as CafeProductUnit)}>
+          <select
+            value={unit}
+            onChange={(e) => {
+              const u = e.target.value as CafeProductUnit;
+              setUnit(u);
+              if (!value && !priceQtyTouched) setPriceQty(u === "g" ? "100" : "1");
+            }}
+          >
             {CAFE_PRODUCT_UNITS.map((u) => (
               <option key={u} value={u}>
                 {CAFE_PRODUCT_UNIT_LABEL[u]}
@@ -569,8 +592,22 @@ function CafeProductEditor({
           />
         </label>
       </div>
-      <label>
-        単価（円 / {CAFE_PRODUCT_UNIT_LABEL[unit]}）
+      <label>単価（任意）</label>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <input
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          value={priceQty}
+          onChange={(e) => {
+            setPriceQty(e.target.value);
+            setPriceQtyTouched(true);
+          }}
+          style={{ width: 90, flex: "none" }}
+          aria-label="単価の基準数量"
+        />
+        <span>{CAFE_PRODUCT_UNIT_LABEL[unit]}あたり</span>
         <input
           type="number"
           min={0}
@@ -578,9 +615,20 @@ function CafeProductEditor({
           inputMode="decimal"
           value={unitPrice}
           onChange={(e) => setUnitPrice(e.target.value)}
-          placeholder={`空欄＝未設定（1${CAFE_PRODUCT_UNIT_LABEL[unit]}あたりの金額）`}
+          placeholder="金額（空欄＝未設定）"
+          style={{ width: 150, flex: "none" }}
+          aria-label="単価の金額（円）"
         />
-      </label>
+        <span>円</span>
+      </div>
+      {unitPrice.trim() !== "" && Number(priceQty) > 0 && Number(unitPrice) >= 0 && (
+        <p className="muted small" style={{ margin: "4px 0 0" }}>
+          例: {formatPrice(Number(priceQty))}
+          {CAFE_PRODUCT_UNIT_LABEL[unit]}で{formatPrice(Number(unitPrice))}円
+          （1{CAFE_PRODUCT_UNIT_LABEL[unit]}あたり
+          {formatPrice(Number(unitPrice) / Number(priceQty))}円）
+        </p>
+      )}
       <div className="form-actions">
         <button className="ghost" onClick={onCancel}>
           キャンセル
@@ -662,7 +710,7 @@ export function CafeQuickOrderForm({
               {p.name}
               {`（${p.supplier ? `発注先: ${p.supplier} ・` : ""}${
                 p.unitPrice !== undefined
-                  ? `単価 ${formatPrice(p.unitPrice)}円/${CAFE_PRODUCT_UNIT_LABEL[p.unit]} ・`
+                  ? `単価 ${priceLabel(p)} ・`
                   : ""
               }締切 ${deadlineFor(p).replace(/-/g, "/")}）`}
             </span>

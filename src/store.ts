@@ -1131,6 +1131,7 @@ export function addCafeProduct(input: {
   unit: CafeProduct["unit"];
   leadDays: number;
   unitPrice?: number;
+  priceQty?: number;
 }): CafeProduct {
   const list = getCafeProducts();
   const max = list.reduce((m, p) => Math.max(m, p.sortOrder), 0);
@@ -1142,6 +1143,7 @@ export function addCafeProduct(input: {
     leadDays: input.leadDays,
     sortOrder: max + 1,
     unitPrice: input.unitPrice,
+    priceQty: input.priceQty,
   };
   saveCafeProducts([...list, product]);
   return product;
@@ -1155,6 +1157,7 @@ export function updateCafeProduct(
     unit: CafeProduct["unit"];
     leadDays: number;
     unitPrice?: number; // undefined なら単価を未設定に戻す
+    priceQty?: number;
   }
 ): void {
   saveCafeProducts(
@@ -1167,6 +1170,7 @@ export function updateCafeProduct(
             unit: input.unit,
             leadDays: input.leadDays,
             unitPrice: input.unitPrice,
+            priceQty: input.priceQty,
           }
         : p
     )

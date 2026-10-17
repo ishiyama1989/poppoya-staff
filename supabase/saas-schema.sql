@@ -242,7 +242,8 @@ create table cafe_products (
   unit text not null default 'g', -- 'g' | '個'
   lead_days integer not null default 1, -- 何日前までに発注が必要か
   sort_order integer not null default 0,
-  unit_price numeric -- 単価（円 / 1g または 1個）。nullなら未設定
+  unit_price numeric, -- 単価（円）。price_qty ぶんの金額。nullなら未設定
+  price_qty numeric -- 単価の基準数量（例: 100g 800円 なら 100）。nullなら1
 );
 
 -- シフトのコマ（勤務パターン）。管理者が設定画面で追加・編集できる。
