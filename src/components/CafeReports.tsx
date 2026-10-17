@@ -19,7 +19,7 @@ import QtyTile, { applyQty, type QtyUpdate } from "./QtyTile";
 
 const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
 
-// 営業時間・メモの表示用
+// 営業時間・メモの表示用（日報の入力画面と一覧で、目立つ枠に大きく出す）
 function HoursInfo({
   openTime,
   closeTime,
@@ -33,15 +33,13 @@ function HoursInfo({
 }) {
   if (!openTime && !closeTime && !note) return null;
   return (
-    <div className={compact ? "req-card-meta" : "muted small"} style={compact ? undefined : { margin: "6px 0" }}>
+    <div className={`hours-box ${compact ? "compact" : ""}`}>
       {(openTime || closeTime) && (
-        <span>🕘 営業時間 {openTime}〜{closeTime}</span>
+        <div className="hours-time">
+          🕘 営業時間 {openTime}〜{closeTime}
+        </div>
       )}
-      {note && (
-        <span>
-          {(openTime || closeTime) && "　"}📝 営業メモ: {note}
-        </span>
-      )}
+      {note && <div className="hours-memo">📝 営業メモ: {note}</div>}
     </div>
   );
 }
