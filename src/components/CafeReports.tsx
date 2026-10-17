@@ -14,6 +14,7 @@ import {
 } from "../store";
 import { WEEKDAYS, todayStr } from "../lib/date";
 import { sendPushToUsers } from "../lib/push";
+import QtyTile, { applyQty, type QtyUpdate } from "./QtyTile";
 
 const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
 
@@ -101,14 +102,7 @@ export default function CafeReports({ me }: { me: User }) {
   ];
   const total = rows.reduce((sum, r) => sum + r.price * qtyOf(r.id), 0);
 
-  // ＋／−ボタンで数量を増減する（0未満にはならない）
-  function bump(id: string, delta: number) {
-    // 連打しても取りこぼさないよう、画面の値ではなく直前の入力値から計算する
-    setQtys((cur) => ({
-      ...cur,
-      [id]: String(Math.max(0, Math.floor(Number(cur[id]) || 0) + delta)),
-    }));
-  }
+  const setQty = (id: string, next: QtyUpdate) => setQtys((cur) => applyQty(cur, id, next));
 
   function save() {
     if (!date) return alert("日付を選んでください");
@@ -246,29 +240,19 @@ export default function CafeReports({ me }: { me: User }) {
         ) : (
           <div className="sold-grid">
             {rows.map((r) => (
-              <div key={r.id} className={`sold-tile ${qtyOf(r.id) > 0 ? "on" : ""}`}>
-                <div className="sold-name">
-                  {r.name}
-                  {r.removed && <span className="tag muted"> 登録解除済み</span>}
-                </div>
-                <div className="sold-price">{yen(r.price)}</div>
-                <div className="qty-stepper">
-                  <button type="button" onClick={() => bump(r.id, -1)} aria-label={`${r.name}を1つ減らす`}>
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    min={0}
-                    inputMode="numeric"
-                    placeholder="0"
-                    value={qtys[r.id] ?? ""}
-                    onChange={(e) => setQtys((cur) => ({ ...cur, [r.id]: e.target.value }))}
-                  />
-                  <button type="button" onClick={() => bump(r.id, 1)} aria-label={`${r.name}を1つ増やす`}>
-                    ＋
-                  </button>
-                </div>
-              </div>
+              <QtyTile
+                key={r.id}
+                name={
+                  <>
+                    {r.name}
+                    {r.removed && <span className="tag muted"> 登録解除済み</span>}
+                  </>
+                }
+                lines={[yen(r.price)]}
+                value={qtys[r.id] ?? ""}
+                unit="個"
+                onChange={(next) => setQty(r.id, next)}
+              />
             ))}
           </div>
         )}

@@ -25,6 +25,7 @@ import {
 } from "../store";
 import { addDays, todayStr } from "../lib/date";
 import { sendPushToUsers } from "../lib/push";
+import QtyTile, { applyQty, type QtyUpdate } from "./QtyTile";
 
 // 単価の表示用（5.5 → "5.5"、1200 → "1,200"）
 function formatPrice(n: number): string {
@@ -35,6 +36,18 @@ function formatPrice(n: number): string {
 function priceLabel(p: CafeProduct): string {
   const qty = p.priceQty && p.priceQty > 0 ? p.priceQty : 1;
   return `${formatPrice(p.unitPrice ?? 0)}円/${qty === 1 ? "" : formatPrice(qty)}${CAFE_PRODUCT_UNIT_LABEL[p.unit]}`;
+}
+
+// ＋／−で増減する量（gは1gずつだと使いにくいので100gずつ、個は1個ずつ）
+const stepOf = (p: CafeProduct) => (p.unit === "g" ? 100 : 1);
+
+// タイルに出す補足（発注先・単価・締切）。1項目1行にして、途中で折り返さないようにする
+function tileLines(p: CafeProduct, deadline?: string | null): string[] {
+  return [
+    p.supplier ? `発注先: ${p.supplier}` : "",
+    p.unitPrice !== undefined ? `単価 ${priceLabel(p)}` : "",
+    deadline ? `締切 ${deadline.slice(5).replace("-", "/")}` : `${p.leadDays}日前までに発注`,
+  ].filter(Boolean);
 }
 
 // 選んだ商品の概算合計。単価が未設定の商品は含めず、その件数も返す。
@@ -107,8 +120,8 @@ export default function CafeOrders({ me }: { me: User }) {
   }
   void version;
 
-  function setCount(id: string, value: string) {
-    setCounts((cur) => ({ ...cur, [id]: value }));
+  function setCount(id: string, next: QtyUpdate) {
+    setCounts((cur) => applyQty(cur, id, next));
   }
 
   function countOf(id: string): number {
@@ -188,38 +201,18 @@ export default function CafeOrders({ me }: { me: User }) {
               まだ商品が登録されていません。下の「商品登録」から追加してください。
             </p>
           ) : (
-            <div className="slot-list">
-              {products.map((p) => {
-                const deadline = deadlineFor(p);
-                return (
-                  <div
-                    key={p.id}
-                    className="slot-row"
-                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
-                  >
-                    <span>
-                      {p.name}
-                      {`（${p.supplier ? `発注先: ${p.supplier} ・` : ""}${
-                        p.unitPrice !== undefined
-                          ? `単価 ${priceLabel(p)} ・`
-                          : ""
-                      }${p.leadDays}日前までに発注`}
-                      {deadline ? ` ・締切 ${deadline.replace(/-/g, "/")}` : ""}）
-                    </span>
-                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                      <input
-                        type="number"
-                        min={0}
-                        inputMode="numeric"
-                        value={counts[p.id] ?? ""}
-                        onChange={(e) => setCount(p.id, e.target.value)}
-                        style={{ width: 70 }}
-                      />
-                      {CAFE_PRODUCT_UNIT_LABEL[p.unit]}
-                    </span>
-                  </div>
-                );
-              })}
+            <div className="sold-grid">
+              {products.map((p) => (
+                <QtyTile
+                  key={p.id}
+                  name={p.name}
+                  lines={tileLines(p, deadlineFor(p))}
+                  value={counts[p.id] ?? ""}
+                  unit={CAFE_PRODUCT_UNIT_LABEL[p.unit]}
+                  step={stepOf(p)}
+                  onChange={(next) => setCount(p.id, next)}
+                />
+              ))}
             </div>
           )}
           {(() => {
@@ -656,8 +649,8 @@ export function CafeQuickOrderForm({
   const [counts, setCounts] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
 
-  function setCount(id: string, value: string) {
-    setCounts((cur) => ({ ...cur, [id]: value }));
+  function setCount(id: string, next: QtyUpdate) {
+    setCounts((cur) => applyQty(cur, id, next));
   }
   function countOf(id: string): number {
     const n = Number(counts[id]);
@@ -699,33 +692,17 @@ export function CafeQuickOrderForm({
 
   return (
     <div className="event-form">
-      <div className="slot-list">
+      <div className="sold-grid">
         {products.map((p) => (
-          <div
+          <QtyTile
             key={p.id}
-            className="slot-row"
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
-          >
-            <span>
-              {p.name}
-              {`（${p.supplier ? `発注先: ${p.supplier} ・` : ""}${
-                p.unitPrice !== undefined
-                  ? `単価 ${priceLabel(p)} ・`
-                  : ""
-              }締切 ${deadlineFor(p).replace(/-/g, "/")}）`}
-            </span>
-            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              <input
-                type="number"
-                min={0}
-                inputMode="numeric"
-                value={counts[p.id] ?? ""}
-                onChange={(e) => setCount(p.id, e.target.value)}
-                style={{ width: 70 }}
-              />
-              {CAFE_PRODUCT_UNIT_LABEL[p.unit]}
-            </span>
-          </div>
+            name={p.name}
+            lines={tileLines(p, deadlineFor(p))}
+            value={counts[p.id] ?? ""}
+            unit={CAFE_PRODUCT_UNIT_LABEL[p.unit]}
+            step={stepOf(p)}
+            onChange={(next) => setCount(p.id, next)}
+          />
         ))}
       </div>
       {(() => {
