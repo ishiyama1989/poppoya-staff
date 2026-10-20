@@ -2,11 +2,13 @@ import type {
   AppRequest,
   AttendanceAlert,
   Availability,
+  CafeExpenseItem,
   CafeHours,
   CafeMenuItem,
   CafeOrder,
   CafeProduct,
   CafeReport,
+  CafeReportExpense,
   CafeReportItem,
   ChecklistItem,
   CommentTemplate,
@@ -53,6 +55,7 @@ import {
   syncCafeHours,
   syncCafeOrders,
   syncCafeProducts,
+  syncCafeExpenseItems,
   syncCafeMenuItems,
   syncCafeReports,
   syncShiftTemplates,
@@ -77,6 +80,7 @@ const KEYS = {
   cafeProducts: "sns_cafe_products",
   cafeReports: "sns_cafe_reports",
   cafeMenuItems: "sns_cafe_menu_items",
+  cafeExpenseItems: "sns_cafe_expense_items",
   shiftTemplates: "sns_shift_templates",
   timeClocks: "sns_time_clocks",
   checklistItems: "sns_checklist_items",
@@ -1201,6 +1205,7 @@ export function saveCafeReport(input: {
   userId: string;
   date: string;
   items: CafeReportItem[];
+  expenses?: CafeReportExpense[];
   note: string;
 }): { ok: true; isNew: boolean } | { ok: false; error: string } {
   const list = getCafeReports();
@@ -1216,6 +1221,10 @@ export function saveCafeReport(input: {
     userId: input.userId,
     items,
     sales: items.reduce((sum, i) => sum + i.price * i.qty, 0),
+    // 金額0円の行は保存しない。未指定のときは、すでにある日報の経費を残す
+    expenses: input.expenses
+      ? input.expenses.filter((e) => e.amount > 0)
+      : (existing?.expenses ?? []),
     note: input.note.trim(),
     openTime: hours?.openTime ?? existing?.openTime,
     closeTime: hours?.closeTime ?? existing?.closeTime,
@@ -1231,6 +1240,37 @@ export function saveCafeReport(input: {
 export function deleteCafeReport(id: string): void {
   write(KEYS.cafeReports, getCafeReports().filter((r) => r.id !== id));
   deleteRemote("cafe_reports", { id });
+}
+
+// ---- 日報の経費の項目（仕入れ・ガス代など）。日報で選ぶ候補 ----
+export function getCafeExpenseItems(): CafeExpenseItem[] {
+  return read<CafeExpenseItem[]>(KEYS.cafeExpenseItems, []).sort(
+    (a, b) => a.sortOrder - b.sortOrder
+  );
+}
+
+function saveCafeExpenseItems(list: CafeExpenseItem[]): void {
+  write(KEYS.cafeExpenseItems, list);
+  syncCafeExpenseItems(list);
+}
+
+export function addCafeExpenseItem(name: string): CafeExpenseItem {
+  const list = getCafeExpenseItems();
+  const max = list.reduce((m, i) => Math.max(m, i.sortOrder), 0);
+  const item: CafeExpenseItem = { id: `cafeexp:${uid()}`, name: name.trim(), sortOrder: max + 1 };
+  saveCafeExpenseItems([...list, item]);
+  return item;
+}
+
+export function updateCafeExpenseItem(id: string, name: string): void {
+  saveCafeExpenseItems(
+    getCafeExpenseItems().map((i) => (i.id === id ? { ...i, name: name.trim() } : i))
+  );
+}
+
+export function deleteCafeExpenseItem(id: string): void {
+  write(KEYS.cafeExpenseItems, getCafeExpenseItems().filter((i) => i.id !== id));
+  deleteRemote("cafe_expense_items", { id });
 }
 
 // ---- LOCOMO CAFEの販売商品（メニュー）。日報で売れた商品を入力するときの選択肢 ----

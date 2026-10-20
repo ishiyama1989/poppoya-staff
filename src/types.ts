@@ -308,6 +308,23 @@ export interface CafeReportItem {
   qty: number;
 }
 
+// 日報に記録する仕入れ・経費1行分。項目名はその日の時点のものを保存する
+// （あとで項目名を変えたり削除しても、過去の日報の表示が変わらないように）。
+export interface CafeReportExpense {
+  id: string;
+  categoryId?: string; // 登録した経費項目（なければ自由入力）
+  name: string;
+  amount: number; // 金額（円）
+  orderId?: string; // 発注から取り込んだ場合の発注ID（二重取り込みを防ぐ）
+}
+
+// 経費の項目（仕入れ・ガス代など）。日報で選ぶ候補になる。
+export interface CafeExpenseItem {
+  id: string;
+  name: string;
+  sortOrder: number;
+}
+
 // LOCOMO CAFEの日報（1日1件。オーナー・カフェ管理人だけが見られる）
 export interface CafeReport {
   id: string;
@@ -315,6 +332,7 @@ export interface CafeReport {
   userId: string; // 記入した（最後に更新した）人
   items: CafeReportItem[]; // 売れた商品
   sales: number; // その日の売上（円）= items の 価格×数量 の合計
+  expenses?: CafeReportExpense[]; // 仕入れ・経費（以前の日報は未設定=0円）
   note: string; // 1日の様子
   // その日のカレンダー登録（LOCOMO CAFEの営業時間・メモ）を保存時に写しておく
   openTime?: string; // "HH:MM"

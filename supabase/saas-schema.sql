@@ -352,6 +352,14 @@ create table cafe_menu_items (
   sort_order integer not null default 0
 );
 
+-- 日報の経費の項目（仕入れ・ガス代など）。日報で選ぶ候補
+create table cafe_expense_items (
+  id text primary key,
+  org_id uuid not null references organizations(id) on delete cascade,
+  name text not null,
+  sort_order integer not null default 0
+);
+
 -- LOCOMO CAFEの日報（1日1件）。items は売れた商品 [{menuId,name,price,qty}]
 -- 商品名・価格は保存時点のものを持つ（あとから価格を変えても過去の売上が変わらないように）。
 -- 記入者が退会しても日報は残す（user_id は set null）。
@@ -362,6 +370,7 @@ create table cafe_reports (
   user_id uuid references profiles(id) on delete set null,
   items jsonb not null default '[]',
   sales integer not null default 0,
+  expenses jsonb not null default '[]', -- 仕入れ・経費 [{id,categoryId,name,amount,orderId}]
   note text default '',
   open_time text, -- その日のカフェ営業時間（カレンダーの登録を保存時に写す）
   close_time text,
@@ -426,6 +435,25 @@ create policy cafemenu_upd on cafe_menu_items for update using (
   and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'cafe_manager')
 ) with check (org_id = auth_org_id());
 create policy cafemenu_del on cafe_menu_items for delete using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'cafe_manager')
+);
+
+-- cafe_expense_items（経費の項目）：閲覧はオーナー・カフェ管理人、追加・編集・削除はカフェ管理人のみ。
+alter table cafe_expense_items enable row level security;
+create policy cafeexpense_sel on cafe_expense_items for select using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role in ('owner', 'cafe_manager'))
+);
+create policy cafeexpense_ins on cafe_expense_items for insert with check (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'cafe_manager')
+);
+create policy cafeexpense_upd on cafe_expense_items for update using (
+  org_id = auth_org_id()
+  and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'cafe_manager')
+) with check (org_id = auth_org_id());
+create policy cafeexpense_del on cafe_expense_items for delete using (
   org_id = auth_org_id()
   and exists (select 1 from profiles me where me.id = auth.uid() and me.role = 'cafe_manager')
 );

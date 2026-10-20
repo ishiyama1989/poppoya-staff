@@ -6,8 +6,10 @@ import {
   deleteCafeMenuItem,
   cafeHoursOn,
   deleteCafeReport,
+  getCafeExpenseItems,
   getCafeHours,
   getCafeMenuItems,
+  getCafeOrders,
   getCafeReports,
   getUsers,
   saveCafeReport,
@@ -16,8 +18,23 @@ import {
 import { WEEKDAYS, todayStr } from "../lib/date";
 import { sendPushToUsers } from "../lib/push";
 import QtyTile, { applyQty, type QtyUpdate } from "./QtyTile";
-
-const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
+import {
+  CafeExpenseSettings,
+  DayBalance,
+  ExpenseEditor,
+  MonthSummary,
+  SixMonthChart,
+  expenseOf,
+  expensesFromRows,
+  profitColor,
+  profitOf,
+  rowsFromExpenses,
+  rowsTotal,
+  shiftMonth,
+  totalsFor,
+  yen,
+  type ExpenseRow,
+} from "./CafeFinance";
 
 // 営業時間・メモの表示用（日報の入力画面と一覧で、目立つ枠に大きく出す）
 function HoursInfo({
@@ -49,13 +66,6 @@ function dateLabel(date: string): string {
   return `${date.replace(/-/g, "/")}（${WEEKDAYS[d.getDay()]}）`;
 }
 
-// "2026-10" を前後の月へ動かす
-function shiftMonth(ym: string, delta: number): string {
-  const [y, m] = ym.split("-").map(Number);
-  const d = new Date(y, m - 1 + delta, 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
 // LOCOMO CAFEの日報（オーナー・カフェ管理人）。
 // 売れた商品の数を入力すると売上が自動で計算され、月ごとの売上合計も確認できる。
 export default function CafeReports({ me }: { me: User }) {
@@ -65,6 +75,7 @@ export default function CafeReports({ me }: { me: User }) {
   const canEdit = me.role === "cafe_manager";
   const users = getUsers();
   const menu = getCafeMenuItems();
+  const categories = getCafeExpenseItems();
 
   // 日報を書けるのは、カフェの営業が登録されている日（今日まで）。
   // すでに日報がある日は、営業登録がなくても編集できるよう選択肢に含める。
@@ -89,6 +100,11 @@ export default function CafeReports({ me }: { me: User }) {
     const d = selectableDates.includes(today) ? today : (selectableDates[0] ?? "");
     return d ? (cafeReportOn(d)?.note ?? "") : "";
   });
+  // 仕入れ・経費の入力行（金額は入力途中の文字列のまま持つ）
+  const [expenseRows, setExpenseRows] = useState<ExpenseRow[]>(() => {
+    const d = selectableDates.includes(today) ? today : (selectableDates[0] ?? "");
+    return rowsFromExpenses(d ? cafeReportOn(d)?.expenses : undefined, getCafeExpenseItems());
+  });
   const [message, setMessage] = useState("");
   const [month, setMonth] = useState(todayStr().slice(0, 7));
 
@@ -106,6 +122,7 @@ export default function CafeReports({ me }: { me: User }) {
     setDate(d);
     setQtys(qtysOf(r));
     setNote(r?.note ?? "");
+    setExpenseRows(rowsFromExpenses(r?.expenses, categories));
     setMessage("");
   }
 
@@ -135,9 +152,11 @@ export default function CafeReports({ me }: { me: User }) {
     const items = rows
       .filter((r) => qtyOf(r.id) > 0)
       .map((r) => ({ menuId: r.id, name: r.name, price: r.price, qty: qtyOf(r.id) }));
-    if (items.length === 0 && !note.trim())
-      return alert("売れた商品か、1日の様子を入力してください");
-    const res = saveCafeReport({ userId: me.id, date, items, note });
+    const exp = expensesFromRows(expenseRows, categories);
+    if (!exp.ok) return alert(exp.error);
+    if (items.length === 0 && exp.expenses.length === 0 && !note.trim())
+      return alert("売れた商品・経費・1日の様子のどれかを入力してください");
+    const res = saveCafeReport({ userId: me.id, date, items, expenses: exp.expenses, note });
     if (!res.ok) return alert(res.error);
     const { isNew } = res;
     if (isNew) {
@@ -155,8 +174,9 @@ export default function CafeReports({ me }: { me: User }) {
   }
 
   // ---- 月ごとの集計 ----
-  const monthReports = getCafeReports().filter((r) => r.date.startsWith(month));
-  const monthSales = monthReports.reduce((s, r) => s + r.sales, 0);
+  const allReports = getCafeReports();
+  const monthReports = allReports.filter((r) => r.date.startsWith(month));
+  const monthTotals = totalsFor(allReports, month);
   const byItem = new Map<string, { name: string; qty: number; sales: number }>();
   for (const r of monthReports)
     for (const i of r.items) {
@@ -165,6 +185,15 @@ export default function CafeReports({ me }: { me: User }) {
       cur.sales += i.price * i.qty;
       byItem.set(i.menuId, cur);
     }
+  // 経費の内訳（項目名ごと）
+  const byExpense = new Map<string, number>();
+  for (const r of monthReports)
+    for (const e of r.expenses ?? []) byExpense.set(e.name, (byExpense.get(e.name) ?? 0) + e.amount);
+  const expenseBreakdown = [...byExpense.entries()]
+    .map(([name, amount]) => ({ name, amount }))
+    .sort((a, b) => b.amount - a.amount);
+  // 直近6か月（選んでいる月まで）
+  const sixMonths = [-5, -4, -3, -2, -1, 0].map((d) => totalsFor(allReports, shiftMonth(month, d)));
   const itemRanking = [...byItem.values()].sort((a, b) => b.qty - a.qty);
   const [my, mm] = month.split("-");
   const isCurrentMonth = month >= todayStr().slice(0, 7);
@@ -175,19 +204,19 @@ export default function CafeReports({ me }: { me: User }) {
         <h2>カフェ日報</h2>
         <p className="muted">
           {canEdit
-            ? "売れた商品の数と、1日の様子を記録します。売上は自動で計算されます。"
+            ? "売れた商品の数・仕入れや経費・1日の様子を記録します。売上と利益は自動で計算されます。"
             : "カフェ管理人が記入した日報を確認できます（閲覧のみ）。"}
         </p>
       </div>
 
-      {/* 月間売上 */}
+      {/* 月ごとの収支 */}
       <div className="settings-card" style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <button className="ghost mini" onClick={() => setMonth(shiftMonth(month, -1))}>
             ‹
           </button>
           <h3 style={{ margin: 0 }}>
-            {my}年{Number(mm)}月の売上合計
+            {my}年{Number(mm)}月の収支
           </h3>
           <button
             className="ghost mini"
@@ -197,20 +226,7 @@ export default function CafeReports({ me }: { me: User }) {
             ›
           </button>
         </div>
-        <div
-          style={{
-            fontSize: 28,
-            fontWeight: 800,
-            color: "var(--primary)",
-            textAlign: "center",
-            margin: "10px 0 2px",
-          }}
-        >
-          {yen(monthSales)}
-        </div>
-        <p className="muted small" style={{ textAlign: "center", margin: 0 }}>
-          日報 {monthReports.length}日分
-        </p>
+        <MonthSummary totals={monthTotals} breakdown={expenseBreakdown} />
         {itemRanking.length > 0 && (
           <div style={{ marginTop: 12 }}>
             <strong className="small">商品別（売れた順）</strong>
@@ -230,6 +246,12 @@ export default function CafeReports({ me }: { me: User }) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* 直近6か月の推移 */}
+      <div className="settings-card" style={{ marginBottom: 20 }}>
+        <h3 style={{ marginTop: 0 }}>直近6か月の売上・経費・利益</h3>
+        <SixMonthChart months={sixMonths} selected={month} onSelect={setMonth} />
       </div>
 
       {/* 日報の入力（カフェ管理人のみ） */}
@@ -293,6 +315,14 @@ export default function CafeReports({ me }: { me: User }) {
         )}
         <p style={{ margin: "10px 0 0", fontWeight: 700 }}>この日の売上: {yen(total)}</p>
 
+        <ExpenseEditor
+          rows={expenseRows}
+          onChange={setExpenseRows}
+          categories={categories}
+          orders={getCafeOrders().filter((o) => o.cafeDate === date && o.totalAmount !== undefined)}
+        />
+        <DayBalance sales={total} expense={rowsTotal(expenseRows)} />
+
         <label style={{ marginTop: 10 }}>
           1日の様子
           <textarea
@@ -329,6 +359,13 @@ export default function CafeReports({ me }: { me: User }) {
                 <span className="req-date">{dateLabel(r.date)}</span>
                 <span className="req-status approved">売上 {yen(r.sales)}</span>
               </div>
+              <div className="req-card-meta" style={{ fontWeight: 700 }}>
+                経費 {yen(expenseOf(r))} ／{" "}
+                <span style={{ color: profitColor(profitOf(r)) }}>
+                  利益 {profitOf(r) < 0 ? "−" : ""}
+                  {yen(Math.abs(profitOf(r)))}
+                </span>
+              </div>
               {(() => {
                 // この機能の追加前に保存した日報は、カレンダーの登録を代わりに表示する
                 const h = r.openTime || r.closeTime || r.hoursNote ? null : cafeHoursOn(r.date);
@@ -344,6 +381,11 @@ export default function CafeReports({ me }: { me: User }) {
               {r.items.length > 0 && (
                 <div className="req-card-meta">
                   {r.items.map((i) => `${i.name} × ${i.qty}`).join("、")}
+                </div>
+              )}
+              {(r.expenses ?? []).length > 0 && (
+                <div className="req-card-meta">
+                  仕入れ・経費: {(r.expenses ?? []).map((e) => `${e.name} ${yen(e.amount)}`).join("、")}
                 </div>
               )}
               {r.note && <div className="req-card-note">{r.note}</div>}
@@ -387,6 +429,7 @@ export default function CafeReports({ me }: { me: User }) {
       )}
 
       {canEdit && <CafeMenuSettings menu={menu} onChange={refresh} />}
+      {canEdit && <CafeExpenseSettings items={categories} onChange={refresh} />}
     </div>
   );
 }
