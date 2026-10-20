@@ -418,10 +418,10 @@ export function CafeExpenseSettings({
       {items.length === 0 ? (
         <p className="muted small">まだ項目が登録されていません（例: コーヒー豆・牛乳・ガス代）。</p>
       ) : (
-        <div className="slot-list">
-          {items.map((i) => (
-            <div key={i.id} className="slot-row">
-              {editingId === i.id ? (
+        <div className="manage-grid">
+          {items.map((i) =>
+            editingId === i.id ? (
+              <div key={i.id} className="manage-tile wide">
                 <div className="expense-edit">
                   <input value={editName} onChange={(e) => setEditName(e.target.value)} aria-label="項目名" />
                   <button className="ghost mini" onClick={() => setEditingId(null)}>
@@ -431,37 +431,35 @@ export function CafeExpenseSettings({
                     保存
                   </button>
                 </div>
-              ) : (
-                <>
-                  <div className="reservation-head">
-                    <span className="avail-chip">{i.name}</span>
-                  </div>
-                  <div className="event-actions">
-                    <button
-                      className="ghost"
-                      onClick={() => {
-                        setEditingId(i.id);
-                        setEditName(i.name);
-                      }}
-                    >
-                      編集
-                    </button>
-                    <button
-                      className="ghost danger"
-                      onClick={() => {
-                        if (confirm(`経費の項目「${i.name}」を削除しますか？`)) {
-                          deleteCafeExpenseItem(i.id);
-                          onChange();
-                        }
-                      }}
-                    >
-                      削除
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
+              </div>
+            ) : (
+              <div key={i.id} className="manage-tile">
+                <div className="manage-name">{i.name}</div>
+                <div className="manage-actions">
+                  <button
+                    className="ghost mini"
+                    onClick={() => {
+                      setEditingId(i.id);
+                      setEditName(i.name);
+                    }}
+                  >
+                    編集
+                  </button>
+                  <button
+                    className="ghost danger mini"
+                    onClick={() => {
+                      if (confirm(`経費の項目「${i.name}」を削除しますか？`)) {
+                        deleteCafeExpenseItem(i.id);
+                        onChange();
+                      }
+                    }}
+                  >
+                    削除
+                  </button>
+                </div>
+              </div>
+            )
+          )}
         </div>
       )}
 

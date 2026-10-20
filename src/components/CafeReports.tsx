@@ -449,19 +449,17 @@ function CafeMenuSettings({ menu, onChange }: { menu: CafeMenuItem[]; onChange: 
       {menu.length === 0 ? (
         <p className="muted small">まだ商品が登録されていません。</p>
       ) : (
-        <div className="slot-list">
+        <div className="manage-grid">
           {menu.map((m) => (
-            <div key={m.id} className="slot-row">
-              <div className="reservation-head">
-                <span className="avail-chip">{m.name}</span>
-                <span className="tag">{yen(m.price)}</span>
-              </div>
-              <div className="event-actions">
-                <button className="ghost" onClick={() => setEditing(m)}>
+            <div key={m.id} className="manage-tile">
+              <div className="manage-name">{m.name}</div>
+              <div className="manage-sub">{yen(m.price)}</div>
+              <div className="manage-actions">
+                <button className="ghost mini" onClick={() => setEditing(m)}>
                   編集
                 </button>
                 <button
-                  className="ghost danger"
+                  className="ghost danger mini"
                   onClick={() => {
                     if (confirm(`販売商品「${m.name}」を削除しますか？`)) {
                       deleteCafeMenuItem(m.id);

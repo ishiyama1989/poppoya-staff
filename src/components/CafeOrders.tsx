@@ -437,26 +437,24 @@ function CafeProductSettings({
       {products.length === 0 ? (
         <p className="muted small">まだ商品が登録されていません。</p>
       ) : (
-        <div className="slot-list">
+        <div className="manage-grid">
           {products.map((p) => (
-            <div key={p.id} className="slot-row">
-              <div className="reservation-head">
-                <span className="avail-chip">{p.name}</span>
-                <span className="tag">{CAFE_PRODUCT_UNIT_LABEL[p.unit]}単位</span>
+            <div key={p.id} className="manage-tile">
+              <div className="manage-name">
+                {p.name}
+                <span className="tag"> {CAFE_PRODUCT_UNIT_LABEL[p.unit]}単位</span>
               </div>
-              <div className="reservation-meta">
-                {p.supplier && `発注先: ${p.supplier} ／ `}
-                {p.unitPrice !== undefined
-                  ? `単価 ${priceLabel(p)} ／ `
-                  : "単価未設定 ／ "}
-                {p.leadDays}日前までに発注
+              {p.supplier && <div className="manage-sub">発注先: {p.supplier}</div>}
+              <div className="manage-sub">
+                {p.unitPrice !== undefined ? `単価 ${priceLabel(p)}` : "単価未設定"}
               </div>
-              <div className="event-actions">
-                <button className="ghost" onClick={() => setEditing(p)}>
+              <div className="manage-sub">{p.leadDays}日前までに発注</div>
+              <div className="manage-actions">
+                <button className="ghost mini" onClick={() => setEditing(p)}>
                   編集
                 </button>
                 <button
-                  className="ghost danger"
+                  className="ghost danger mini"
                   onClick={() => {
                     if (confirm(`商品「${p.name}」を削除しますか？`)) {
                       deleteCafeProduct(p.id);
