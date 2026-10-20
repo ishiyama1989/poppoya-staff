@@ -25,6 +25,7 @@ import {
 } from "../store";
 import { addDays, todayStr } from "../lib/date";
 import { sendPushToUsers } from "../lib/push";
+import EditModal from "./EditModal";
 import QtyTile, { applyQty, type QtyUpdate } from "./QtyTile";
 
 // 単価の表示用（5.5 → "5.5"、1200 → "1,200"）
@@ -477,14 +478,20 @@ function CafeProductSettings({
       )}
 
       {editing && (
-        <CafeProductEditor
-          value={editing === "new" ? null : editing}
-          onCancel={() => setEditing(null)}
-          onSave={() => {
-            setEditing(null);
-            onChange();
-          }}
-        />
+        <EditModal
+          title={editing === "new" ? "発注商品を追加" : "発注商品を編集"}
+          onClose={() => setEditing(null)}
+        >
+          <CafeProductEditor
+            key={editing === "new" ? "new" : editing.id}
+            value={editing === "new" ? null : editing}
+            onCancel={() => setEditing(null)}
+            onSave={() => {
+              setEditing(null);
+              onChange();
+            }}
+          />
+        </EditModal>
       )}
     </div>
   );
@@ -544,6 +551,7 @@ function CafeProductEditor({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="例: コーヒー豆"
+          autoFocus
         />
       </label>
       <label>

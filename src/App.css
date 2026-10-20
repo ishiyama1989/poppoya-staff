@@ -1882,3 +1882,7 @@ label input, label select, label textarea { margin-top: 6px; font-weight: 400; }
 .manage-actions { display: flex; gap: 6px; margin-top: auto; padding-top: 6px; }
 .manage-actions button { flex: 1; padding: 4px 6px; font-size: 12px; }
 .manage-name .tag { white-space: nowrap; }
+
+/* ===== 編集ポップアップ（フォームだけを中央に出す） ===== */
+.edit-modal { width: 440px; }
+.edit-modal .event-form { border-top: none; padding-top: 0; margin-top: 0; }

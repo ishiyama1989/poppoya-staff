@@ -17,6 +17,7 @@ import {
 } from "../store";
 import { WEEKDAYS, todayStr } from "../lib/date";
 import { sendPushToUsers } from "../lib/push";
+import EditModal from "./EditModal";
 import QtyTile, { applyQty, type QtyUpdate } from "./QtyTile";
 import {
   CafeExpenseSettings,
@@ -481,14 +482,20 @@ function CafeMenuSettings({ menu, onChange }: { menu: CafeMenuItem[]; onChange: 
         </button>
       )}
       {editing && (
-        <CafeMenuEditor
-          value={editing === "new" ? null : editing}
-          onCancel={() => setEditing(null)}
-          onSave={() => {
-            setEditing(null);
-            onChange();
-          }}
-        />
+        <EditModal
+          title={editing === "new" ? "販売商品を追加" : "販売商品を編集"}
+          onClose={() => setEditing(null)}
+        >
+          <CafeMenuEditor
+            key={editing === "new" ? "new" : editing.id}
+            value={editing === "new" ? null : editing}
+            onCancel={() => setEditing(null)}
+            onSave={() => {
+              setEditing(null);
+              onChange();
+            }}
+          />
+        </EditModal>
       )}
     </div>
   );
@@ -526,6 +533,7 @@ function CafeMenuEditor({
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="例: カフェラテ"
+          autoFocus
         />
       </label>
       <label>
