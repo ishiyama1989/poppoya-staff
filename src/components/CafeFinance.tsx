@@ -1,6 +1,15 @@
 import { useState } from "react";
-import type { CafeExpenseItem, CafeOrder, CafeReport, CafeReportExpense } from "../types";
+import {
+  CAFE_PRODUCT_UNIT_LABEL,
+  type CafeExpenseItem,
+  type CafeOrder,
+  type CafeProduct,
+  type CafeReport,
+  type CafeReportExpense,
+} from "../types";
+import { costFor, priceLabel, stepOf } from "../lib/cafeProduct";
 import EditModal from "./EditModal";
+import QtyTile, { type QtyUpdate } from "./QtyTile";
 import { addCafeExpenseItem, deleteCafeExpenseItem, updateCafeExpenseItem, uid } from "../store";
 
 export const yen = (n: number) => `${n.toLocaleString("ja-JP")}円`;
@@ -53,7 +62,7 @@ export function rowsFromExpenses(
   list: CafeReportExpense[] | undefined,
   categories: CafeExpenseItem[]
 ): ExpenseRow[] {
-  return (list ?? []).map((e) => ({
+  return (list ?? []).filter((e) => !e.productId).map((e) => ({
     key: e.id,
     // 登録項目が削除されている場合は、保存されている項目名の自由入力として扱う
     categoryId: e.categoryId && categories.some((c) => c.id === e.categoryId) ? e.categoryId : "",
@@ -99,25 +108,178 @@ export const newRow = (categoryId = ""): ExpenseRow => ({
   amount: "",
 });
 
-// 仕入れ・経費の入力欄。項目を選んで金額を入れる。その日を営業日にした発注は、ボタンで取り込める。
+// ---- 発注商品の仕入れ（数量を入れると、単価から金額を計算する） ----
+export interface ProductLine {
+  id: string; // 発注商品のID
+  name: string;
+  unit: CafeProduct["unit"];
+  unitPrice?: number;
+  priceQty?: number;
+  step: number;
+  removed: boolean; // 発注商品の登録は解除されているが、保存済みの日報にある行
+}
+
+// 入力欄に出す行：登録中の発注商品 ＋ 日報にはあるが商品が削除された行。
+// 日報にある商品の単価は、保存時点の単価を使う（あとから単価を変えても過去の経費が動かない）。
+export function productLines(
+  products: CafeProduct[],
+  saved: CafeReportExpense[] | undefined
+): ProductLine[] {
+  const savedById = new Map((saved ?? []).filter((e) => e.productId).map((e) => [e.productId!, e]));
+  return [
+    ...products.map((p) => {
+      const s = savedById.get(p.id);
+      return {
+        id: p.id,
+        name: p.name,
+        unit: p.unit,
+        unitPrice: s ? s.unitPrice : p.unitPrice,
+        priceQty: s ? s.priceQty : p.priceQty,
+        step: stepOf(p),
+        removed: false,
+      };
+    }),
+    ...[...savedById.values()]
+      .filter((e) => !products.some((p) => p.id === e.productId))
+      .map((e) => {
+        const unit = e.unit === "個" ? ("個" as const) : ("g" as const);
+        return {
+          id: e.productId!,
+          name: e.name,
+          unit,
+          unitPrice: e.unitPrice,
+          priceQty: e.priceQty,
+          step: stepOf({ unit }),
+          removed: true,
+        };
+      }),
+  ];
+}
+
+const qtyNum = (s: string | undefined): number => Math.max(0, Math.floor(Number(s) || 0));
+
+// 1行ぶんの金額。単価があれば 数量×単価、なければ直接入力した金額
+export function lineAmount(l: ProductLine, qty: string | undefined, amount: string | undefined): number {
+  const q = qtyNum(qty);
+  if (q === 0) return 0;
+  const c = costFor(l, q);
+  return c !== null ? c : Math.max(0, Math.round(Number(amount) || 0));
+}
+
+export function productExpenses(
+  lines: ProductLine[],
+  qtys: Record<string, string>,
+  amounts: Record<string, string>
+): CafeReportExpense[] {
+  return lines
+    .filter((l) => qtyNum(qtys[l.id]) > 0)
+    .map((l) => ({
+      id: `prod:${l.id}`,
+      productId: l.id,
+      name: l.name,
+      qty: qtyNum(qtys[l.id]),
+      unit: l.unit,
+      unitPrice: l.unitPrice,
+      priceQty: l.priceQty,
+      amount: lineAmount(l, qtys[l.id], amounts[l.id]),
+    }));
+}
+
+export function productsTotal(
+  lines: ProductLine[],
+  qtys: Record<string, string>,
+  amounts: Record<string, string>
+): number {
+  return lines.reduce((s, l) => s + lineAmount(l, qtys[l.id], amounts[l.id]), 0);
+}
+
+// 経費1件の表示名（数量つきなら「モカ 300g」）
+export const expenseLabel = (e: CafeReportExpense): string =>
+  e.qty ? `${e.name} ${e.qty}${e.unit ?? ""}` : e.name;
+
+// 仕入れ・経費の入力欄。発注商品は数量を入れ（金額は単価から自動計算）、
+// それ以外の経費（ガス代など）は項目を選んで金額を入れる。
 export function ExpenseEditor({
   rows,
   onChange,
   categories,
   orders,
+  lines,
+  qtys,
+  amounts,
+  onQtyChange,
+  onAmountChange,
+  onCategoriesChanged,
 }: {
   rows: ExpenseRow[];
   onChange: (rows: ExpenseRow[]) => void;
   categories: CafeExpenseItem[];
   orders: CafeOrder[]; // この日を営業日にした発注（概算合計あり）
+  lines: ProductLine[]; // 発注商品の行
+  qtys: Record<string, string>;
+  amounts: Record<string, string>; // 単価未設定の商品の金額
+  onQtyChange: (id: string, next: QtyUpdate) => void;
+  onAmountChange: (id: string, value: string) => void;
+  onCategoriesChanged: () => void; // 項目を登録したあと、一覧を読み直す
 }) {
   const update = (key: string, patch: Partial<ExpenseRow>) =>
     onChange(rows.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   const importedIds = new Set(rows.map((r) => r.orderId).filter(Boolean));
+  const unpriced = lines.filter((l) => l.unitPrice === undefined && qtyNum(qtys[l.id]) > 0);
 
   return (
     <div className="expense-editor">
-      <label style={{ marginTop: 10 }}>仕入れ・経費</label>
+      <label style={{ marginTop: 10 }}>仕入れ（発注商品の数量を入力）</label>
+      {lines.length === 0 ? (
+        <p className="muted small">
+          発注商品がまだありません。「カフェの発注」タブの商品登録で登録すると、ここで数量を入れられます。
+        </p>
+      ) : (
+        <div className="sold-grid">
+          {lines.map((l) => {
+            const q = qtyNum(qtys[l.id]);
+            const amount = lineAmount(l, qtys[l.id], amounts[l.id]);
+            return (
+              <QtyTile
+                key={l.id}
+                name={
+                  <>
+                    {l.name}
+                    {l.removed && <span className="tag muted"> 登録解除済み</span>}
+                  </>
+                }
+                lines={[
+                  l.unitPrice !== undefined ? `単価 ${priceLabel({ ...l })}` : "単価未設定",
+                  q > 0 && l.unitPrice !== undefined ? `＝ ${yen(amount)}` : "",
+                ].filter(Boolean)}
+                value={qtys[l.id] ?? ""}
+                unit={CAFE_PRODUCT_UNIT_LABEL[l.unit]}
+                step={l.step}
+                onChange={(next) => onQtyChange(l.id, next)}
+              />
+            );
+          })}
+        </div>
+      )}
+      {unpriced.map((l) => (
+        <div key={l.id} className="expense-amount" style={{ marginTop: 6 }}>
+          <span className="small" style={{ flex: "none" }}>
+            {l.name}は単価が未設定です。金額:
+          </span>
+          <input
+            type="number"
+            min={0}
+            inputMode="numeric"
+            value={amounts[l.id] ?? ""}
+            onChange={(e) => onAmountChange(l.id, e.target.value)}
+            placeholder="金額"
+            aria-label={`${l.name}の金額`}
+          />
+          <span>円</span>
+        </div>
+      ))}
+
+      <label style={{ marginTop: 14 }}>その他の経費（ガス代など）</label>
 
       {rows.map((r) => {
         // 選んでいた項目が削除された行は、自由入力の行として扱う（名前は残す）
@@ -147,12 +309,28 @@ export function ExpenseEditor({
             </button>
           </div>
           {catId === "" && (
-            <input
-              value={r.name}
-              onChange={(e) => update(r.key, { name: e.target.value })}
-              placeholder="項目名（例: 洗剤）"
-              aria-label="経費の項目名"
-            />
+            <div className="expense-name-row">
+              <input
+                value={r.name}
+                onChange={(e) => update(r.key, { name: e.target.value })}
+                placeholder="項目名（例: 洗剤）"
+                aria-label="経費の項目名"
+              />
+              {r.name.trim() !== "" && !r.orderId && (
+                <button
+                  type="button"
+                  className="ghost mini"
+                  onClick={() => {
+                    // 入力した項目名を、経費の項目に登録して、この行をその項目にする
+                    const item = addCafeExpenseItem(r.name);
+                    update(r.key, { categoryId: item.id });
+                    onCategoriesChanged();
+                  }}
+                >
+                  項目に登録
+                </button>
+              )}
+            </div>
           )}
           <div className="expense-amount">
             <input
@@ -178,13 +356,15 @@ export function ExpenseEditor({
           </button>
         ))}
         <button type="button" className="ghost mini" onClick={() => onChange([...rows, newRow()])}>
-          ＋ その他の経費
+          ＋ 新しい経費
         </button>
       </div>
 
       {orders.length > 0 && (
         <div className="expense-orders">
-          <div className="small muted">この営業日への発注（金額は単価からの概算です）</div>
+          <div className="small muted">
+            この営業日への発注（概算）。上で数量を入れた商品は、取り込まないでください（二重になります）
+          </div>
           {orders.map((o) => {
             const done = importedIds.has(o.id);
             return (
@@ -246,7 +426,7 @@ export function MonthSummary({
   breakdown,
 }: {
   totals: MonthTotals;
-  breakdown: { name: string; amount: number }[]; // 経費の内訳（金額の大きい順）
+  breakdown: { name: string; amount: number; qty?: number; unit?: string }[]; // 経費の内訳（金額の大きい順）
 }) {
   const margin = totals.sales > 0 ? Math.round((totals.profit / totals.sales) * 1000) / 10 : null;
   return (
@@ -279,7 +459,10 @@ export function MonthSummary({
           <div className="slot-list">
             {breakdown.map((b) => (
               <div key={b.name} className="slot-row" style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>{b.name}</span>
+                <span>
+                  {b.name}
+                  {b.qty ? ` ${b.qty.toLocaleString("ja-JP")}${b.unit ?? ""}` : ""}
+                </span>
                 <span>{yen(b.amount)}</span>
               </div>
             ))}
@@ -410,9 +593,10 @@ export function CafeExpenseSettings({
 
   return (
     <div className="settings-card" style={{ margin: "20px 0" }}>
-      <h3>経費の項目の登録</h3>
+      <h3>その他の経費の項目の登録</h3>
       <p className="muted small" style={{ marginTop: 0 }}>
-        仕入れやガス代など、日報の経費で選ぶ項目を登録しておきます。
+        ガス代・容器代など、発注商品以外の経費の項目を登録しておきます
+        （発注商品は「カフェの発注」の商品登録に入れると、日報で数量を入れられます）。
         項目を削除したり名前を変えても、保存済みの日報の表示は変わりません。
       </p>
 

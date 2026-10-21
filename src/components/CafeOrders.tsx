@@ -25,22 +25,9 @@ import {
 } from "../store";
 import { addDays, todayStr } from "../lib/date";
 import { sendPushToUsers } from "../lib/push";
+import { baseQty, formatPrice, priceLabel, stepOf } from "../lib/cafeProduct";
 import EditModal from "./EditModal";
 import QtyTile, { applyQty, type QtyUpdate } from "./QtyTile";
-
-// 単価の表示用（5.5 → "5.5"、1200 → "1,200"）
-function formatPrice(n: number): string {
-  return n.toLocaleString("ja-JP", { maximumFractionDigits: 2 });
-}
-
-// 単価の表示（例: "800円/100g"、"5.5円/g"、"200円/個"）
-function priceLabel(p: CafeProduct): string {
-  const qty = p.priceQty && p.priceQty > 0 ? p.priceQty : 1;
-  return `${formatPrice(p.unitPrice ?? 0)}円/${qty === 1 ? "" : formatPrice(qty)}${CAFE_PRODUCT_UNIT_LABEL[p.unit]}`;
-}
-
-// ＋／−で増減する量（gは1gずつだと使いにくいので100gずつ、個は1個ずつ）
-const stepOf = (p: CafeProduct) => (p.unit === "g" ? 100 : 1);
 
 // タイルに出す補足（発注先・単価・締切）。1項目1行にして、途中で折り返さないようにする
 function tileLines(p: CafeProduct, deadline?: string | null): string[] {
@@ -60,7 +47,7 @@ function estimateTotal(
   let unpriced = 0;
   for (const p of selected) {
     if (p.unitPrice === undefined) unpriced++;
-    else total += (p.unitPrice / (p.priceQty && p.priceQty > 0 ? p.priceQty : 1)) * countOf(p.id);
+    else total += (p.unitPrice / baseQty(p)) * countOf(p.id);
   }
   return { total: Math.round(total), unpriced };
 }

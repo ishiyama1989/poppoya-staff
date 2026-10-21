@@ -10,6 +10,7 @@ import {
   getCafeHours,
   getCafeMenuItems,
   getCafeOrders,
+  getCafeProducts,
   getCafeReports,
   getUsers,
   saveCafeReport,
@@ -26,7 +27,11 @@ import {
   MonthSummary,
   SixMonthChart,
   expenseOf,
+  expenseLabel,
   expensesFromRows,
+  productExpenses,
+  productLines,
+  productsTotal,
   profitColor,
   profitOf,
   rowsFromExpenses,
@@ -77,6 +82,7 @@ export default function CafeReports({ me }: { me: User }) {
   const users = getUsers();
   const menu = getCafeMenuItems();
   const categories = getCafeExpenseItems();
+  const products = getCafeProducts();
 
   // 日報を書けるのは、カフェの営業が登録されている日（今日まで）。
   // すでに日報がある日は、営業登録がなくても編集できるよう選択肢に含める。
@@ -106,6 +112,15 @@ export default function CafeReports({ me }: { me: User }) {
     const d = selectableDates.includes(today) ? today : (selectableDates[0] ?? "");
     return rowsFromExpenses(d ? cafeReportOn(d)?.expenses : undefined, getCafeExpenseItems());
   });
+  // 発注商品の仕入れ数量（入力途中の文字列）と、単価未設定の商品の金額
+  const [productQtys, setProductQtys] = useState<Record<string, string>>(() => {
+    const d = selectableDates.includes(today) ? today : (selectableDates[0] ?? "");
+    return qtysOfExpenses(d ? cafeReportOn(d)?.expenses : undefined);
+  });
+  const [productAmts, setProductAmts] = useState<Record<string, string>>(() => {
+    const d = selectableDates.includes(today) ? today : (selectableDates[0] ?? "");
+    return amtsOfExpenses(d ? cafeReportOn(d)?.expenses : undefined);
+  });
   const [message, setMessage] = useState("");
   const [month, setMonth] = useState(todayStr().slice(0, 7));
 
@@ -117,6 +132,20 @@ export default function CafeReports({ me }: { me: User }) {
     return Object.fromEntries((r?.items ?? []).map((i) => [i.menuId, String(i.qty)]));
   }
 
+  function qtysOfExpenses(list: CafeReport["expenses"]): Record<string, string> {
+    return Object.fromEntries(
+      (list ?? []).filter((e) => e.productId).map((e) => [e.productId!, String(e.qty ?? 0)])
+    );
+  }
+  // 単価がなかった商品の金額は、保存した金額を入れ直す
+  function amtsOfExpenses(list: CafeReport["expenses"]): Record<string, string> {
+    return Object.fromEntries(
+      (list ?? [])
+        .filter((e) => e.productId && e.unitPrice === undefined)
+        .map((e) => [e.productId!, String(e.amount)])
+    );
+  }
+
   // 日付を切り替えたら、その日の日報があれば入力欄に読み込む
   function loadDate(d: string) {
     const r = cafeReportOn(d);
@@ -124,6 +153,8 @@ export default function CafeReports({ me }: { me: User }) {
     setQtys(qtysOf(r));
     setNote(r?.note ?? "");
     setExpenseRows(rowsFromExpenses(r?.expenses, categories));
+    setProductQtys(qtysOfExpenses(r?.expenses));
+    setProductAmts(amtsOfExpenses(r?.expenses));
     setMessage("");
   }
 
@@ -146,6 +177,10 @@ export default function CafeReports({ me }: { me: User }) {
   ];
   const total = rows.reduce((sum, r) => sum + r.price * qtyOf(r.id), 0);
 
+  // 仕入れの行（発注商品）。保存済みの日報にある商品は、保存時点の単価で表示する
+  const pLines = productLines(products, saved?.expenses);
+  const expenseTotal = productsTotal(pLines, productQtys, productAmts) + rowsTotal(expenseRows);
+
   const setQty = (id: string, next: QtyUpdate) => setQtys((cur) => applyQty(cur, id, next));
 
   function save() {
@@ -155,9 +190,15 @@ export default function CafeReports({ me }: { me: User }) {
       .map((r) => ({ menuId: r.id, name: r.name, price: r.price, qty: qtyOf(r.id) }));
     const exp = expensesFromRows(expenseRows, categories);
     if (!exp.ok) return alert(exp.error);
-    if (items.length === 0 && exp.expenses.length === 0 && !note.trim())
+    // 単価がない商品は、金額が入っていないと経費が0円になってしまうので確認する
+    const missing = pLines.find(
+      (l) => l.unitPrice === undefined && Number(productQtys[l.id]) > 0 && !(Number(productAmts[l.id]) > 0)
+    );
+    if (missing) return alert(`「${missing.name}」は単価が未設定です。金額を入力してください`);
+    const expenses = [...productExpenses(pLines, productQtys, productAmts), ...exp.expenses];
+    if (items.length === 0 && expenses.length === 0 && !note.trim())
       return alert("売れた商品・経費・1日の様子のどれかを入力してください");
-    const res = saveCafeReport({ userId: me.id, date, items, expenses: exp.expenses, note });
+    const res = saveCafeReport({ userId: me.id, date, items, expenses, note });
     if (!res.ok) return alert(res.error);
     const { isNew } = res;
     if (isNew) {
@@ -187,12 +228,16 @@ export default function CafeReports({ me }: { me: User }) {
       byItem.set(i.menuId, cur);
     }
   // 経費の内訳（項目名ごと）
-  const byExpense = new Map<string, number>();
+  const byExpense = new Map<string, { name: string; amount: number; qty?: number; unit?: string }>();
   for (const r of monthReports)
-    for (const e of r.expenses ?? []) byExpense.set(e.name, (byExpense.get(e.name) ?? 0) + e.amount);
-  const expenseBreakdown = [...byExpense.entries()]
-    .map(([name, amount]) => ({ name, amount }))
-    .sort((a, b) => b.amount - a.amount);
+    for (const e of r.expenses ?? []) {
+      const key = e.productId ?? e.name;
+      const cur = byExpense.get(key) ?? { name: e.name, amount: 0, qty: e.productId ? 0 : undefined, unit: e.unit };
+      cur.amount += e.amount;
+      if (e.productId) cur.qty = (cur.qty ?? 0) + (e.qty ?? 0);
+      byExpense.set(key, cur);
+    }
+  const expenseBreakdown = [...byExpense.values()].sort((a, b) => b.amount - a.amount);
   // 直近6か月（選んでいる月まで）
   const sixMonths = [-5, -4, -3, -2, -1, 0].map((d) => totalsFor(allReports, shiftMonth(month, d)));
   const itemRanking = [...byItem.values()].sort((a, b) => b.qty - a.qty);
@@ -320,9 +365,15 @@ export default function CafeReports({ me }: { me: User }) {
           rows={expenseRows}
           onChange={setExpenseRows}
           categories={categories}
+          lines={pLines}
+          qtys={productQtys}
+          amounts={productAmts}
+          onQtyChange={(id, next) => setProductQtys((cur) => applyQty(cur, id, next))}
+          onAmountChange={(id, v) => setProductAmts((cur) => ({ ...cur, [id]: v }))}
+          onCategoriesChanged={refresh}
           orders={getCafeOrders().filter((o) => o.cafeDate === date && o.totalAmount !== undefined)}
         />
-        <DayBalance sales={total} expense={rowsTotal(expenseRows)} />
+        <DayBalance sales={total} expense={expenseTotal} />
 
         <label style={{ marginTop: 10 }}>
           1日の様子
@@ -386,7 +437,7 @@ export default function CafeReports({ me }: { me: User }) {
               )}
               {(r.expenses ?? []).length > 0 && (
                 <div className="req-card-meta">
-                  仕入れ・経費: {(r.expenses ?? []).map((e) => `${e.name} ${yen(e.amount)}`).join("、")}
+                  仕入れ・経費: {(r.expenses ?? []).map((e) => `${expenseLabel(e)} ${yen(e.amount)}`).join("、")}
                 </div>
               )}
               {r.note && <div className="req-card-note">{r.note}</div>}

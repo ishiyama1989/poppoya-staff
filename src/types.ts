@@ -316,6 +316,13 @@ export interface CafeReportExpense {
   name: string;
   amount: number; // 金額（円）
   orderId?: string; // 発注から取り込んだ場合の発注ID（二重取り込みを防ぐ）
+  // 発注商品の仕入れとして数量を入れた場合。単価は保存時点の値を残す
+  // （あとで商品の単価を変えても、過去の経費が変わらないように）。
+  productId?: string; // 発注商品（CafeProduct.id）
+  qty?: number; // 数量
+  unit?: string; // 単位（g / 個）
+  unitPrice?: number; // 単価（priceQty ぶんの金額・円）。未設定の商品は金額を直接入力
+  priceQty?: number; // 単価の基準数量
 }
 
 // 経費の項目（仕入れ・ガス代など）。日報で選ぶ候補になる。

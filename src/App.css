@@ -1886,3 +1886,6 @@ label input, label select, label textarea { margin-top: 6px; font-weight: 400; }
 /* ===== 編集ポップアップ（フォームだけを中央に出す） ===== */
 .edit-modal { width: 440px; }
 .edit-modal .event-form { border-top: none; padding-top: 0; margin-top: 0; }
+.expense-name-row { display: flex; gap: 6px; align-items: center; }
+.expense-name-row input { flex: 1; min-width: 0; }
+.expense-name-row button { flex: none; white-space: nowrap; }
